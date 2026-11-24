@@ -58,6 +58,7 @@ class KnowledgeCategory(str, Enum):
     DITHERING = "dithering"
     ANIMATION_TIMING = "animation_timing"
     COMPOSITION = "composition"
+    VFX_SPELLS = "vfx_spells"
     GENERAL = "general"
 
 

@@ -60,7 +60,7 @@ def test_four_knowledge_types_distinguishable(memory_orchestrator):
 
     # 1. External reference records (seeded)
     refs = repo.query_knowledge(knowledge_type=KnowledgeType.EXTERNAL_REFERENCE)
-    assert len(refs) == 10
+    assert len(refs) == 15
     for r in refs:
         assert r.knowledge_type == KnowledgeType.EXTERNAL_REFERENCE
         assert r.confidence_score is None  # No pseudo-probability
@@ -109,7 +109,7 @@ def test_external_reference_provenance_preservation(memory_orchestrator):
     applicable categories, resolutions, styles, limitations, and validation status.
     """
     refs = memory_orchestrator.learning_repo.query_knowledge(knowledge_type=KnowledgeType.EXTERNAL_REFERENCE)
-    assert len(refs) == 10
+    assert len(refs) == 15
 
     authors_found = {r.provenance.author for r in refs if r.provenance}
     assert "Sandro Maglione" in authors_found

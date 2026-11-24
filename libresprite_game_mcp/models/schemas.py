@@ -59,6 +59,7 @@ class CharacterBlueprint(BaseModel):
     views: List[str] = Field(default_factory=lambda: ["down", "left", "right", "up"])
     animations: Dict[str, CharacterAnimationSpec] = Field(default_factory=dict)
     pivot: Tuple[float, float] = (0.5, 0.9)
+    outline_mode: Optional[str] = Field(default=None, description="Options: none, black, colored, sel_out")
 
 
 class TilesetSpec(BaseModel):

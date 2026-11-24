@@ -223,23 +223,27 @@ class LearningRepository:
     # Knowledge Operations
     # -------------------------------------------------------------------------
     def save_knowledge(self, record: KnowledgeRecord) -> KnowledgeRecord:
-        """Saves or updates a KnowledgeRecord, enforcing strict data ownership across knowledge tiers."""
-        # Objective C Data Ownership Safeguard:
-        # KnowledgeRecord belongs to the Knowledge Repository.
-        # Feedback entities must be recorded independently in the Feedback Repository via save_feedback.
-        # Validated skills must be stored as versioned SkillDefinition JSON manifests in the Skill Registry.
-        if record.knowledge_type == KnowledgeType.HUMAN_FEEDBACK:
-            if not record.applied_feedback_ids and not record.source_experience_ids:
-                raise ValueError(
-                    "HUMAN_FEEDBACK knowledge tier requires linked feedback/experience IDs. "
-                    "Raw human feedback must be recorded via save_feedback() into the feedback repository."
-                )
-        elif record.knowledge_type == KnowledgeType.VALIDATED_SKILL:
-            if "skill_id" not in record.conditions and not record.source_experience_ids:
-                raise ValueError(
-                    "VALIDATED_SKILL knowledge tier requires linked skill definition ID or experience IDs. "
-                    "Skill workflows must be registered as versioned SkillDefinition files in SkillRegistry."
-                )
+        """
+        Saves or updates a KnowledgeRecord, enforcing strict data ownership across knowledge tiers.
+        The KnowledgeRepository strictly persists EXTERNAL_REFERENCE and EMPIRICAL_KNOWLEDGE only.
+        HUMAN_FEEDBACK and VALIDATED_SKILL records are rejected entirely.
+        """
+        if record.knowledge_type not in (KnowledgeType.EXTERNAL_REFERENCE, KnowledgeType.EMPIRICAL_KNOWLEDGE):
+            raise ValueError(
+                f"Data ownership violation: KnowledgeRepository strictly persists EXTERNAL_REFERENCE and "
+                f"EMPIRICAL_KNOWLEDGE records only. Attempted to persist '{record.knowledge_type.value}'. "
+                f"Human feedback must be recorded via save_feedback() in the FeedbackRepository, and "
+                f"validated skills must be registered as versioned manifests in the SkillRegistry."
+            )
+
+        # Validate linked record identifier formats
+        if record.knowledge_type == KnowledgeType.EMPIRICAL_KNOWLEDGE:
+            for exp_id in record.source_experience_ids:
+                if not isinstance(exp_id, str) or not exp_id.strip():
+                    raise ValueError(f"Invalid linked experience identifier: '{exp_id}'")
+            for fb_id in record.applied_feedback_ids:
+                if not isinstance(fb_id, str) or not fb_id.strip():
+                    raise ValueError(f"Invalid linked feedback identifier: '{fb_id}'")
 
         with self.db.transaction() as conn:
             conn.execute(

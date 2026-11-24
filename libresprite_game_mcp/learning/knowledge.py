@@ -188,56 +188,104 @@ class KnowledgeRetriever:
         matched: List[KnowledgeRecord] = []
         for rule in all_candidates:
             conds = rule.conditions
+            prov = rule.provenance
 
-            # 1. Category filter
-            if "task_category" in conds and task_category:
-                if conds["task_category"].lower() != task_category.lower():
-                    continue
+            # 1. Category filter (conditions + ReferenceProvenance.applicable_asset_categories)
+            if task_category:
+                cat_lower = task_category.lower().strip()
+                if "task_category" in conds:
+                    if conds["task_category"].lower().strip() != cat_lower:
+                        continue
+                if prov and prov.applicable_asset_categories:
+                    allowed_cats = [c.lower().strip() for c in prov.applicable_asset_categories]
+                    if "all" not in allowed_cats and cat_lower not in allowed_cats:
+                        continue
 
-            # 2. Resolution filter
-            if "resolution" in conds and resolution:
-                expected_res = conds["resolution"]
+            # 2. Resolution filter (conditions + ReferenceProvenance.applicable_resolutions)
+            if resolution:
                 actual_res_str = f"{resolution[0]}x{resolution[1]}"
-                if isinstance(expected_res, list):
-                    if actual_res_str not in expected_res and list(resolution) != expected_res:
+                if "resolution" in conds:
+                    expected_res = conds["resolution"]
+                    if isinstance(expected_res, list):
+                        if actual_res_str not in expected_res and list(resolution) != expected_res:
+                            continue
+                    elif expected_res != actual_res_str and expected_res != list(resolution):
                         continue
-                elif expected_res != actual_res_str and expected_res != list(resolution):
-                    continue
+                if prov and prov.applicable_resolutions:
+                    allowed_res = [r.lower().strip() for r in prov.applicable_resolutions]
+                    if "all" not in allowed_res and actual_res_str not in allowed_res:
+                        continue
 
-            # 3. Palette condition filter: rule only applies if requested palette matches
-            if "palette_name" in conds and palette_name:
-                rule_pal = conds["palette_name"]
-                if isinstance(rule_pal, list):
-                    if palette_name.lower() not in [p.lower() for p in rule_pal]:
+            # 3. Palette condition filter
+            if palette_name:
+                pal_lower = palette_name.lower().strip()
+                if "palette_name" in conds:
+                    rule_pal = conds["palette_name"]
+                    if isinstance(rule_pal, list):
+                        if pal_lower not in [p.lower().strip() for p in rule_pal]:
+                            continue
+                    elif str(rule_pal).lower().strip() != pal_lower:
                         continue
-                elif str(rule_pal).lower() != palette_name.lower():
-                    continue
+                if "palettes" in conds:
+                    rule_pals = conds["palettes"]
+                    if isinstance(rule_pals, list) and pal_lower not in [p.lower().strip() for p in rule_pals]:
+                        continue
 
-            # 4. Archetype condition filter
-            if "archetype" in conds and archetype:
-                rule_arch = conds["archetype"]
-                if isinstance(rule_arch, list):
-                    if archetype.lower() not in [a.lower() for a in rule_arch]:
-                        continue
-                elif str(rule_arch).lower() != archetype.lower():
+            # 4. Art Profile & Style filter (conditions + ReferenceProvenance.applicable_styles)
+            if art_profile:
+                prof_lower = art_profile.lower().strip()
+                if "art_profile" in conds and conds["art_profile"].lower().strip() != prof_lower:
                     continue
+                if "style" in conds and conds["style"].lower().strip() != prof_lower:
+                    continue
+                if prov and prov.applicable_styles:
+                    allowed_styles = [s.lower().strip() for s in prov.applicable_styles]
+                    if "all" not in allowed_styles:
+                        incompatible_styles = (
+                            "vector", "modern_vector_ui", "vector_ui", "3d", "realistic",
+                            "photorealistic", "low_poly", "voxel", "high_res_ui"
+                        )
+                        is_incompatible = any(inc in prof_lower for inc in incompatible_styles)
+                        if is_incompatible:
+                            continue
 
-            # 5. Animation state filter
-            if "animation_state" in conds and animation_state:
-                rule_state = conds["animation_state"]
-                if isinstance(rule_state, list):
-                    if animation_state.lower() not in [s.lower() for s in rule_state]:
+            # 5. Archetype condition filter
+            if archetype:
+                arch_lower = archetype.lower().strip()
+                if "archetype" in conds:
+                    rule_arch = conds["archetype"]
+                    if isinstance(rule_arch, list):
+                        if arch_lower not in [a.lower().strip() for a in rule_arch]:
+                            continue
+                    elif str(rule_arch).lower().strip() != arch_lower:
                         continue
-                elif str(rule_state).lower() != animation_state.lower():
-                    continue
+
+            # 6. Animation state filter
+            if animation_state:
+                state_lower = animation_state.lower().strip()
+                if "animation_state" in conds:
+                    rule_state = conds["animation_state"]
+                    if isinstance(rule_state, list):
+                        if state_lower not in [s.lower().strip() for s in rule_state]:
+                            continue
+                    elif str(rule_state).lower().strip() != state_lower:
+                        continue
 
             matched.append(rule)
 
-        # Sort: Project-specific rules take precedence over universal; then by score (or 0.95 for reference)
-        def _sort_key(r: KnowledgeRecord) -> Tuple[int, float]:
+        # Sort: Explicit Evidence Priority Ordering (Objective 5: No artificial 0.95 or 1.0 fallbacks)
+        EVIDENCE_PRIORITY = {
+            EvidenceStatus.HUMAN_DIRECTIVE: 4,
+            EvidenceStatus.COMMUNITY_CONSENSUS: 3,
+            EvidenceStatus.REFERENCE_GUIDANCE: 2,
+            EvidenceStatus.EMPIRICAL_OBSERVATION: 1,
+        }
+
+        def _sort_key(r: KnowledgeRecord) -> Tuple[int, int, float]:
             is_proj = 1 if r.project_id is not None else 0
-            score = r.confidence_score if r.confidence_score is not None else 0.95
-            return (is_proj, score)
+            ev_priority = EVIDENCE_PRIORITY.get(r.evidence_status, 0)
+            emp_conf = r.confidence_score if r.confidence_score is not None else 0.0
+            return (is_proj, ev_priority, emp_conf)
 
         matched.sort(key=_sort_key, reverse=True)
         return matched
@@ -288,5 +336,16 @@ class KnowledgeRetriever:
             for k, v in recs.items():
                 if k not in guidance["recommendations"]:
                     guidance["recommendations"][k] = v
+
+        guidance["rule_metadata"] = {
+            rule.rule_name: {
+                "id": rule.id,
+                "knowledge_type": rule.knowledge_type.value,
+                "evidence_status": rule.evidence_status.value,
+                "category": rule.category.value,
+                "provenance": rule.provenance.model_dump() if rule.provenance else None,
+            }
+            for rule in rules
+        }
 
         return guidance

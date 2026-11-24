@@ -34,16 +34,16 @@ def memory_orchestrator(tmp_path):
 
 
 def test_seed_art_bible_knowledge_idempotency(memory_repo):
-    """Verifies that seeding populates exactly 10 rules and repeated execution is idempotent."""
+    """Verifies that seeding populates foundational rules (including VFX/spells) and repeated execution is idempotent."""
     rules_init = memory_repo.query_knowledge(limit=100)
     assert len(rules_init) == 0
 
     # First seeding
     seeded_1 = seed_art_bible_knowledge(memory_repo)
-    assert len(seeded_1) == 10
+    assert len(seeded_1) == 15
 
     rules_after_1 = memory_repo.query_knowledge(limit=100)
-    assert len(rules_after_1) == 10
+    assert len(rules_after_1) == 15
 
     # Verify categories present
     categories = {r.category for r in rules_after_1}
@@ -54,14 +54,15 @@ def test_seed_art_bible_knowledge_idempotency(memory_repo):
     assert KnowledgeCategory.COMPOSITION in categories
     assert KnowledgeCategory.ANIMATION_TIMING in categories
     assert KnowledgeCategory.DITHERING in categories
+    assert KnowledgeCategory.VFX_SPELLS in categories
     assert KnowledgeCategory.GENERAL in categories
 
     # Second seeding (must not duplicate)
     seeded_2 = seed_art_bible_knowledge(memory_repo)
-    assert len(seeded_2) == 10
+    assert len(seeded_2) == 15
 
     rules_after_2 = memory_repo.query_knowledge(limit=100)
-    assert len(rules_after_2) == 10
+    assert len(rules_after_2) == 15
 
 
 def test_orchestrator_guidance_includes_art_bible_rules(memory_orchestrator):

@@ -266,6 +266,7 @@ def create_character_from_blueprint(
     result["guidance_applied"] = guidance.applicable_rules
     result["guidance_rules_consumed"] = getattr(project, "metadata", {}).get("guidance_rules_consumed", [])
     result["guidance_rules_ignored"] = getattr(project, "metadata", {}).get("guidance_rules_ignored", [])
+    result["guidance_telemetry"] = getattr(project, "metadata", {}).get("guidance_telemetry", {})
 
     return result
 

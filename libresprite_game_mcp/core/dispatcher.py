@@ -150,6 +150,7 @@ def _prod_generate_character(params: Dict[str, Any], workspace: Path) -> Dict[st
         "guidance_applied": applied_rules,
         "guidance_rules_consumed": rules_consumed,
         "guidance_rules_ignored": rules_ignored,
+        "guidance_telemetry": getattr(project, "metadata", {}).get("guidance_telemetry", {}),
     }
 
 
