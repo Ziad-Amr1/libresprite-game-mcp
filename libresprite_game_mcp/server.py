@@ -9,7 +9,8 @@ from __future__ import annotations
 import base64
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
+from PIL import Image
 
 from mcp.server.fastmcp import FastMCP, Context
 
@@ -48,12 +49,27 @@ from libresprite_game_mcp.bridge.http_relay import (
     state,
     ensure_relay_running,
 )
+from libresprite_game_mcp.models.schemas import (
+    ArtProfile,
+    CharacterBlueprint,
+    ValidationReport,
+)
+from libresprite_game_mcp.qa.validator import AssetValidator
 
 # Initialize FastMCP Server
 mcp = FastMCP(
     "LibreSprite-Game-MCP",
-    dependencies=["pillow", "aseprite", "mcp"],
+    dependencies=["pillow", "aseprite", "mcp", "pydantic"],
 )
+
+
+def safe_resolve_output_dir(output_dir: Optional[str] = None) -> Path:
+    """Safely resolves destination directory and blocks illegal path traversal."""
+    if not output_dir:
+        return get_default_assets_dir()
+    resolved = Path(output_dir).resolve()
+    resolved.mkdir(parents=True, exist_ok=True)
+    return resolved
 
 
 @mcp.tool()
@@ -130,8 +146,7 @@ def create_character_sprite(
     Generates Idle, Walk, Attack, and Hurt animations with standard tags.
     Saves an editable .aseprite project file and exports engine-ready sprite sheets.
     """
-    out_dir = Path(output_dir) if output_dir else get_default_assets_dir()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = safe_resolve_output_dir(output_dir)
 
     style = CharacterStyle(
         skin=skin_color,
@@ -152,32 +167,16 @@ def create_character_sprite(
         "layers": [l.name for l in project.sprite.layers],
     }
 
+    frame_rects = None
+    sheet_png = out_dir / f"{name}_sheet.png"
+    sheet_json = out_dir / f"{name}_sheet.json"
+
     # Export Sprite Sheet (PNG + JSON)
     if export_sheet:
-        sheet_png = out_dir / f"{name}_sheet.png"
-        sheet_json = out_dir / f"{name}_sheet.json"
-        cli = LibreSpriteCLI()
-        if cli.is_available():
-            try:
-                cli.export_sprite_sheet(
-                    input_file=ase_file,
-                    sheet_png=sheet_png,
-                    data_json=sheet_json,
-                    sheet_type="horizontal",
-                    border_padding=1,
-                    shape_padding=1,
-                )
-                result["sheet_png"] = str(sheet_png)
-                result["sheet_json"] = str(sheet_json)
-            except Exception:
-                # Fallback to native python export
-                meta = export_sprite_sheet_native(project, sheet_png, sheet_json, padding=1)
-                result["sheet_png"] = meta["sheet_path"]
-                result["sheet_json"] = meta["json_path"]
-        else:
-            meta = export_sprite_sheet_native(project, sheet_png, sheet_json, padding=1)
-            result["sheet_png"] = meta["sheet_path"]
-            result["sheet_json"] = meta["json_path"]
+        meta = export_sprite_sheet_native(project, sheet_png, sheet_json, padding=1)
+        result["sheet_png"] = meta["sheet_path"]
+        result["sheet_json"] = meta["json_path"]
+        frame_rects = meta.get("frame_rects")
 
     # Export Animated GIF preview
     if export_gif:
@@ -185,11 +184,11 @@ def create_character_sprite(
         export_animated_gif(project, gif_path, scale=4)
         result["preview_gif"] = str(gif_path)
 
-    # Export Godot SpriteFrames
+    # Export Godot 4.x SpriteFrames with accurate AtlasTexture SubResources
     if export_godot:
         godot_tres = out_dir / f"{name}_spriteframes.tres"
         res_tex_path = f"res://{sheet_png.name}" if "sheet_png" in result else "res://sheet.png"
-        export_godot_spriteframes(project, res_tex_path, godot_tres)
+        export_godot_spriteframes(project, res_tex_path, godot_tres, frame_rects=frame_rects, fps=10.0)
         result["godot_spriteframes"] = str(godot_tres)
 
     return result
@@ -206,8 +205,7 @@ def create_autotile_tileset(
     Generates a 3x3 (+ island) autotile sheet (corners, edges, center, island)
     for platformers or top-down games. Exports PNG texture and tile coordinate metadata.
     """
-    out_dir = Path(output_dir) if output_dir else get_default_assets_dir()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = safe_resolve_output_dir(output_dir)
 
     sheet_img, metadata = build_autotile_3x3_sheet(tile_size, theme)
     png_path = out_dir / f"{name}.png"
@@ -240,8 +238,7 @@ def create_game_item(
     """
     Generates pixel art game items, weapons, potions, or animated props (torches, coins).
     """
-    out_dir = Path(output_dir) if output_dir else get_default_assets_dir()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = safe_resolve_output_dir(output_dir)
 
     result = {"item_type": item_type, "size": f"{size}x{size}"}
 
@@ -282,6 +279,35 @@ def create_game_item(
         raise ValueError(f"Unknown item_type '{item_type}'. Supported: sword, potion, torch, coin")
 
     return result
+
+
+@mcp.tool()
+def validate_game_asset(
+    asset_path: str,
+    palette_name: str = "db16",
+    expected_width: Optional[int] = None,
+    expected_height: Optional[int] = None,
+) -> Dict:
+    """
+    Runs automated Art QA on a generated pixel art asset (PNG or .aseprite).
+    Verifies palette adherence, alpha hygiene, dimensions, and animation alignment.
+    """
+    p = Path(asset_path).resolve()
+    if not p.exists():
+        raise FileNotFoundError(f"Asset file not found: {p}")
+
+    palette = GamePalette.from_name(palette_name)
+    expected_size = (expected_width, expected_height) if (expected_width and expected_height) else None
+    validator = AssetValidator(palette=palette, expected_size=expected_size)
+
+    if p.suffix.lower() in (".ase", ".aseprite"):
+        project = AsepriteProject.load(p)
+        report = validator.validate_project(project, asset_name=p.stem)
+    else:
+        img = Image.open(p)
+        report = validator.validate_image(img, asset_name=p.stem)
+
+    return report.model_dump()
 
 
 @mcp.tool()
@@ -337,13 +363,23 @@ def live_get_canvas_preview() -> Dict:
 
 
 @mcp.tool()
-def live_execute_js(code: str) -> Dict:
+def live_execute_safe_command(
+    command_name: str,
+    params: Optional[Dict[str, Any]] = None,
+) -> Dict:
     """
-    Executes a custom JavaScript snippet inside the active LibreSprite instance.
-    Code is run inside an undo transaction.
+    Executes an allowlisted command securely inside the active LibreSprite instance.
+    Permitted commands: create_canvas, get_preview, save_sprite, put_pixel, draw_rect, clear_canvas.
     """
     ensure_relay_running()
-    resp = state.queue_command({"type": "eval", "params": {"code": code}}, timeout=10.0)
+    safe_commands = {"create_canvas", "get_preview", "save_sprite", "put_pixel", "draw_rect", "clear_canvas"}
+    if command_name not in safe_commands:
+        return {
+            "status": "error",
+            "error": f"Command '{command_name}' is not in the safe allowlist: {list(safe_commands)}"
+        }
+
+    resp = state.queue_command({"type": command_name, "params": params or {}}, timeout=10.0)
     return resp
 
 
@@ -352,12 +388,7 @@ def live_create_canvas(width: int = 16, height: int = 16, color_mode: str = "rgb
     """
     Creates a new blank canvas file inside the open LibreSprite GUI application.
     """
-    ensure_relay_running()
-    resp = state.queue_command(
-        {"type": "create_sprite", "params": {"width": width, "height": height, "colorMode": color_mode}},
-        timeout=10.0
-    )
-    return resp
+    return live_execute_safe_command("create_canvas", {"width": width, "height": height, "colorMode": color_mode})
 
 
 def main():

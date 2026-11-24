@@ -46,6 +46,7 @@ def export_sprite_sheet_native(
 
     sheet_img = Image.new("RGBA", (sheet_w, sheet_h), (0, 0, 0, 0))
     frames_meta = {}
+    frame_rects: List[Tuple[int, int, int, int]] = []
 
     for idx, frame_img in enumerate(frames):
         c = idx % cols
@@ -54,6 +55,7 @@ def export_sprite_sheet_native(
         y = padding + r * cell_h
 
         sheet_img.paste(frame_img, (x, y))
+        frame_rects.append((x, y, frame_w, frame_h))
 
         duration_ms = 100
         if idx < len(project.sprite.frames):
@@ -108,6 +110,7 @@ def export_sprite_sheet_native(
         "json_path": str(Path(output_json).resolve()) if output_json else None,
         "sheet_size": (sheet_w, sheet_h),
         "frames_count": frame_count,
+        "frame_rects": frame_rects,
         "tags": meta_tags,
     }
 
@@ -116,52 +119,75 @@ def export_godot_spriteframes(
     project: AsepriteProject,
     sheet_texture_res_path: str,
     output_tres_path: Union[str, Path],
+    frame_rects: Optional[List[Tuple[int, int, int, int]]] = None,
     fps: float = 10.0,
+    padding: int = 1,
 ) -> Path:
     """
-    Exports a Godot 4.x SpriteFrames (.tres) resource for use in AnimatedSprite2D.
+    Exports a 100% syntactically valid Godot 4.x SpriteFrames (.tres) resource.
+    Generates proper [sub_resource type="AtlasTexture"] declarations for every frame.
     """
     tres_path = Path(output_tres_path).resolve()
     tres_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Godot Resource text format
-    content = [
-        '[gd_resource type="SpriteFrames" load_steps=2 format=3]',
+    frame_count = len(project.sprite.frames)
+    frame_w = project.width
+    frame_h = project.height
+
+    # If rects not passed, calculate default horizontal strip
+    if not frame_rects or len(frame_rects) != frame_count:
+        frame_rects = []
+        cell_w = frame_w + padding
+        for i in range(frame_count):
+            rx = padding + i * cell_w
+            ry = padding
+            frame_rects.append((rx, ry, frame_w, frame_h))
+
+    load_steps = 2 + frame_count
+
+    # Header and external texture resource
+    lines = [
+        f'[gd_resource type="SpriteFrames" load_steps={load_steps} format=3]',
         "",
         f'[ext_resource type="Texture2D" path="{sheet_texture_res_path}" id="1_texture"]',
         "",
-        '[resource]',
-        "animations = [{",
     ]
 
-    # Map tags or create default animation
+    # SubResource declarations for AtlasTexture
+    for i, (rx, ry, rw, rh) in enumerate(frame_rects):
+        lines.append(f'[sub_resource type="AtlasTexture" id="AtlasTexture_{i}"]')
+        lines.append('atlas = ExtResource("1_texture")')
+        lines.append(f'region = Rect2({rx}, {ry}, {rw}, {rh})')
+        lines.append("")
+
+    lines.append("[resource]")
+    lines.append("animations = [{")
+
     tags = list(project.sprite.tags)
     if not tags:
-        # Default animation covering all frames
-        content.append('  "frames": [')
-        for i in range(len(project.sprite.frames)):
-            content.append(f'    {{ "duration": 1.0, "texture": SubResource("AtlasTexture_{i}") }},')
-        content.append('  ],')
-        content.append('  "loop": true,')
-        content.append('  "name": &"default",')
-        content.append(f'  "speed": {fps}')
+        lines.append('  "frames": [')
+        for i in range(frame_count):
+            lines.append(f'    {{ "duration": 1.0, "texture": SubResource("AtlasTexture_{i}") }},')
+        lines.append('  ],')
+        lines.append('  "loop": true,')
+        lines.append('  "name": &"default",')
+        lines.append(f'  "speed": {fps}')
     else:
-        for tag in tags:
-            content.append(f'  "frames": [')
+        for idx, tag in enumerate(tags):
+            lines.append('  "frames": [')
             for f_idx in range(tag.from_frame, tag.to_frame + 1):
-                content.append(f'    {{ "duration": 1.0, "texture": SubResource("AtlasTexture_{f_idx}") }},')
-            content.append('  ],')
-            content.append('  "loop": true,')
-            content.append(f'  "name": &"{tag.name}",')
-            content.append(f'  "speed": {fps}')
-            content.append("}, {")
-        if content[-1] == "}, {":
-            content.pop()
+                lines.append(f'    {{ "duration": 1.0, "texture": SubResource("AtlasTexture_{f_idx}") }},')
+            lines.append('  ],')
+            lines.append('  "loop": true,')
+            lines.append(f'  "name": &"{tag.name}",')
+            lines.append(f'  "speed": {fps}')
+            if idx < len(tags) - 1:
+                lines.append("}, {")
 
-    content.append("}]")
+    lines.append("}]")
 
     with open(tres_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(content) + "\n")
+        f.write("\n".join(lines) + "\n")
 
     return tres_path
 

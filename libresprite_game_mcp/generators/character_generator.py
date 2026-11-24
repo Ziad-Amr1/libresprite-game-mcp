@@ -115,11 +115,12 @@ def generate_character_frame(
         # Knockback offset
         mid_x -= 1
 
-    # Ground shadow (under feet)
+    # Ground shadow (under feet) - uses 100% opaque palette outline/shadow color to preserve binary alpha
+    shadow_color = style.outline
     shadow_y = height - 2 * scale
     canvas_shadow.draw.ellipse(
         [mid_x - 4 * scale, shadow_y, mid_x + 3 * scale, shadow_y + 1 * scale],
-        fill=(0, 0, 0, 110)
+        fill=shadow_color
     )
 
     # Coordinates

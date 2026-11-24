@@ -22,7 +22,8 @@ class AsepriteProject:
         self.width = width
         self.height = height
         self.sprite = aseprite.Sprite(width, height)
-        # Default layer is created by Sprite constructor
+        # Track layers; initial layer is created by Sprite constructor as "Layer 1"
+        self._initial_layer_renamed = False
         self.layers: Dict[str, aseprite.Layer] = {self.sprite.layers[0].name: self.sprite.layers[0]}
         self.tags: Dict[str, Tuple[int, int]] = {}
 
@@ -37,6 +38,7 @@ class AsepriteProject:
         proj = cls(sprite.size[0], sprite.size[1])
         proj.sprite = sprite
         proj.layers = {layer.name: layer for layer in sprite.layers}
+        proj._initial_layer_renamed = True
         return proj
 
     def set_layer_name(self, old_name: str, new_name: str) -> None:
@@ -44,11 +46,22 @@ class AsepriteProject:
             layer = self.layers.pop(old_name)
             layer.name = new_name
             self.layers[new_name] = layer
+            self._initial_layer_renamed = True
 
     def add_layer(self, name: str, opacity: int = 255) -> aseprite.Layer:
-        """Adds a new raster image layer."""
+        """Adds a new raster image layer or adopts the default layer if untouched."""
         if name in self.layers:
             return self.layers[name]
+
+        # Prevent empty orphan 'Layer 1'
+        if not self._initial_layer_renamed and "Layer 1" in self.layers:
+            layer = self.layers.pop("Layer 1")
+            layer.name = name
+            layer.opacity = opacity
+            self.layers[name] = layer
+            self._initial_layer_renamed = True
+            return layer
+
         layer = self.sprite.add_layer(name, opacity=opacity)
         self.layers[name] = layer
         return layer
@@ -75,7 +88,6 @@ class AsepriteProject:
 
         if layer_images:
             for layer_name, img in layer_images.items():
-                layer = self.add_layer(layer_name)
                 self.set_frame_image(frame_idx, layer_name, img)
 
         return frame_idx

@@ -1,43 +1,49 @@
 # LibreSprite Game Asset MCP Server 🎮🎨
 
-A high-performance **Model Context Protocol (MCP)** server specifically engineered for **game developers** and **pixel artists** to generate, animate, edit, and export 2D game assets using **LibreSprite**.
+A professional **Model Context Protocol (MCP)** server engineered for **game developers** and **pixel artists** to generate, animate, edit, validate, and export 2D game assets using **LibreSprite** and **Godot 4.x**.
 
 ---
 
-## 🌟 Features
+## 🌟 Key Capabilities
 
 * **Multi-Layered Animated Characters**:
-  * Procedural generation of 2D heroes, monsters, and NPCs.
-  * Standard game animation states with tags: `idle`, `walk`, `attack`, `hurt`.
-  * Modular layer structure: `Shadow`, `Body`, `Clothes`, `Gear`.
-  * Native `.aseprite` format output for full editing inside LibreSprite.
+  * Procedural generation of 2D characters with standard animation tags: `idle`, `walk`, `attack`, `hurt`.
+  * Clean, named layer structure: `Shadow`, `Body`, `Clothes`, `Gear`.
+  * Native `.aseprite` format output with zero orphan layers for seamless editing inside LibreSprite.
+
+* **Godot 4.x Native Integration**:
+  * Generates 100% syntactically valid Godot 4 `.tres` (`SpriteFrames`) resources.
+  * Fully declares `[sub_resource type="AtlasTexture"]` blocks with exact `Rect2` regions and frame durations.
+  * Direct drop-in compatibility with Godot's `AnimatedSprite2D`.
+
+* **Automated Art QA Validation Engine**:
+  * Automated checks for palette compliance, binary alpha hygiene (zero translucent border pixels), dimension checks, and animation foot baseline alignment.
+  * Generates structured `ValidationReport` objects prior to export.
 
 * **Autotile 3x3 Tilesets**:
-  * 3x3 autotile sheets with corners, edges, center, and island tiles.
-  * Themes: `grass_dirt`, `stone_dungeon`, `wood_planks`.
+  * Autotile sheets with corners, edges, center, and island tiles.
+  * Built-in themes: `grass_dirt`, `stone_dungeon`, `wood_planks`.
   * Exports texture atlas PNG and tile metadata JSON.
 
-* **Game Items & Animated Props**:
-  * Weapons: Diagonal RPG swords, staves, daggers.
-  * Potions: Flasks with liquid highlights (`health`, `mana`, `stamina`, `elixir`).
-  * Animated Props: 4-frame dungeon wall torch (dancing flame) and 4-frame spinning gold coin.
-
-* **Game Engine Exporters**:
-  * **Godot 4.x**: Exports `.tres` (`SpriteFrames`) resource ready to drop into `AnimatedSprite2D`.
-  * **TexturePacker / Aseprite JSON**: Industry standard JSON Hash/Array sprite sheet format with frame durations, trims, and tags.
-  * **Animated GIF**: Scaled pixel-crisp previews for chat and documentation.
-
 * **Curated Retro Game Palettes**:
-  * PICO-8 (16 colors)
-  * Game Boy Classic / Pocket (4 shades)
-  * DawnBringer 16 (DB16) & DawnBringer 32 (DB32)
-  * Endesga 32 (EDG32)
-  * Sweetie 16
-  * Cyberpunk Neon & Monochrome
+  * PICO-8 (16 colors), Game Boy Classic / Pocket (4 shades), DawnBringer 16/32, Endesga 32, Sweetie 16, Cyberpunk Neon.
 
-* **Dual Connection Modes**:
-  1. **Headless Batch Pipeline**: Runs in the background with zero GUI friction using LibreSprite's CLI (`libresprite.exe -b`) and native Python generators.
-  2. **Live Interactive GUI Bridge**: Connects directly to an open LibreSprite window via `libresprite_mcp_bridge.js` to draw live, inspect canvases, and execute commands in real-time.
+* **Dual Connection Modes & Security Hardening**:
+  * **Headless Batch Pipeline**: Runs in the background with zero GUI friction using LibreSprite's CLI (`libresprite.exe -b`) and native Python generators.
+  * **Secure Live GUI Bridge**: Communicates with LibreSprite through an allowlisted command dispatcher (`libresprite_mcp_bridge.js`) prohibiting arbitrary code execution.
+
+---
+
+## 📚 Studio Documentation
+
+Comprehensive documentation engineered by the multidisciplinary AI Art & Tech team:
+
+* **[Initial Audit](docs/audit/INITIAL_AUDIT.md)**: Repository code audit, architectural evaluation, security risks, visual quality findings, and testing gaps.
+* **[Pixel Art Bible](docs/art-bible/PIXEL_ART_BIBLE.md)**: Technical pixel art principles (pixel clusters, line hygiene, hue shifting, outlines, dithering discipline, character proportions, animation principles, 47-blob autotiling).
+* **[AI Art Team Architecture](docs/architecture/AI_ART_TEAM.md)**: Centralized orchestrator workflow, specialist role contracts (Art Director, Character Designer, Pixel Artist, Animator, Technical Artist, QA Specialist, Godot Specialist), and concurrency safeguards.
+* **[Asset Specification](docs/architecture/ASSET_SPECIFICATION.md)**: Structured Pydantic schemas for Project Art Profiles, Character Blueprints, Tileset Specs, and Item Specs.
+* **[Production Workflow](docs/workflows/AI_ASSET_WORKFLOW.md)**: Standard 10-step asset production lifecycle from game brief to engine import and approval.
+* **[Technical Roadmap](docs/roadmap/TECHNICAL_ROADMAP.md)**: Phased development plan from Phase 0 to Phase 4.
 
 ---
 
@@ -54,7 +60,6 @@ pip install -e .
 
 Add the following block to your MCP client configuration (e.g., `claude_desktop_config.json`, Cursor `mcp.json`, or Antigravity):
 
-#### Windows
 ```json
 {
   "mcpServers": {
@@ -66,17 +71,15 @@ Add the following block to your MCP client configuration (e.g., `claude_desktop_
 }
 ```
 
-*(Optional: If LibreSprite is installed in a non-standard location, set the `LIBRESPRITE_EXE` environment variable to its full path).*
-
 ### 3. Optional: Live LibreSprite GUI Mode
-The bridge script `libresprite_mcp_bridge.js` is automatically installed into your LibreSprite scripts folder:
+The secure bridge script `libresprite_mcp_bridge.js` is automatically installed into your LibreSprite scripts folder:
 * Windows: `%APPDATA%\LibreSprite\scripts\libresprite_mcp_bridge.js`
 * Linux: `~/.config/libresprite/scripts/libresprite_mcp_bridge.js`
 
 To use live mode:
 1. Open LibreSprite.
 2. Go to **File** $\rightarrow$ **Scripts** $\rightarrow$ **libresprite_mcp_bridge.js**.
-3. Click **Connect**. The AI can now draw live on your canvas and retrieve live previews!
+3. Click **Connect**.
 
 ---
 
@@ -85,28 +88,13 @@ To use live mode:
 | Tool | Description |
 |---|---|
 | `get_libresprite_status` | Returns LibreSprite installation, CLI batch status, and live GUI connection state. |
-| `install_bridge_script` | Re-installs or updates the bridge script in LibreSprite's scripts folder. |
+| `install_bridge_script` | Re-installs or updates the secure bridge script in LibreSprite's scripts folder. |
 | `list_game_palettes` | Lists all retro game palettes (PICO-8, DB16, DB32, Game Boy, EDG32, etc.). |
-| `create_character_sprite` | Generates multi-layered animated character with idle/walk/attack/hurt tags, `.aseprite`, sheet PNG/JSON, and Godot `.tres`. |
+| `create_character_sprite` | Generates multi-layered animated character with idle/walk/attack/hurt tags, `.aseprite`, sheet PNG/JSON, GIF, and Godot 4 `.tres`. |
 | `create_autotile_tileset` | Generates 3x3 autotile sheet and tile coordinate metadata JSON. |
 | `create_game_item` | Generates swords, potion flasks, animated torches, or spinning coins. |
 | `export_asset_sprite_sheet` | Packs any `.ase` or `.aseprite` file into a padded texture atlas with metadata. |
+| `validate_game_asset` | Runs automated Art QA verifying palette compliance, binary alpha hygiene, and dimensions. |
 | `live_get_canvas_preview` | Grabs live canvas snapshot from running LibreSprite as Base64 PNG. |
 | `live_create_canvas` | Creates a new canvas inside open LibreSprite GUI. |
-| `live_execute_js` | Runs custom JavaScript code inside open LibreSprite session. |
-
----
-
-## 📂 Example Output Structure
-
-```
-game_assets/
-├── hero.aseprite              # Native LibreSprite editable project
-├── hero_sheet.png             # Packed texture atlas
-├── hero_sheet.json            # Frame coordinates, tags, and durations
-├── hero_preview.gif           # Crisp 4x animated GIF preview
-├── hero_spriteframes.tres     # Godot 4 AnimatedSprite2D resource
-├── world_tiles.png            # 3x3 autotile sheet
-├── world_tiles.json           # Tile boundary and collision data
-└── dungeon_torch.gif          # 4-frame animated prop
-```
+| `live_execute_safe_command` | Runs allowlisted operations securely inside open LibreSprite session. |
