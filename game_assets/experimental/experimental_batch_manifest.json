@@ -1,0 +1,409 @@
+{
+  "exp_knight": {
+    "name": "Armored Knight",
+    "export": {
+      "name": "Armored Knight",
+      "character_id": "exp_knight",
+      "aseprite_project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_knight.aseprite",
+      "size": "16x16",
+      "tags": [
+        "idle",
+        "walk",
+        "attack",
+        "hurt"
+      ],
+      "layers": [
+        "Shadow",
+        "Body",
+        "Clothes",
+        "Gear"
+      ],
+      "pivot": [
+        0.5,
+        0.9
+      ],
+      "sheet_png": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_knight_sheet.png",
+      "sheet_json": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_knight_sheet.json",
+      "preview_gif": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_knight_preview.gif",
+      "godot_spriteframes": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_knight_spriteframes.tres",
+      "preview_png": "game_assets\\experimental\\exp_knight_preview.png"
+    },
+    "qa": {
+      "asset_name": "exp_knight",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "passed": true,
+          "details": {
+            "actual": [
+              16,
+              16
+            ],
+            "expected": [
+              16,
+              16
+            ]
+          }
+        },
+        "alpha_hygiene": {
+          "passed": true,
+          "details": {
+            "semi_transparent_pixel_count": 0,
+            "sample_coords": []
+          }
+        },
+        "palette_adherence": {
+          "passed": true,
+          "details": {
+            "unique_colors_used": 9,
+            "unauthorized_colors": [],
+            "palette_name": "db16"
+          }
+        },
+        "cluster_coherence": {
+          "passed": true,
+          "details": {
+            "orphan_pixel_count": 0,
+            "samples": []
+          }
+        },
+        "animation_alignment": {
+          "passed": true,
+          "details": {
+            "contact_zone": [
+              6,
+              10
+            ],
+            "foot_baselines": [
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15
+            ],
+            "max_drift_px": 0,
+            "strict_constraint": false
+          }
+        }
+      },
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    }
+  },
+  "exp_mage": {
+    "name": "Arcane Mage",
+    "export": {
+      "name": "Arcane Mage",
+      "character_id": "exp_mage",
+      "aseprite_project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_mage.aseprite",
+      "size": "16x16",
+      "tags": [
+        "idle",
+        "walk",
+        "attack",
+        "hurt"
+      ],
+      "layers": [
+        "Shadow",
+        "Body",
+        "Clothes",
+        "Gear"
+      ],
+      "pivot": [
+        0.5,
+        0.9
+      ],
+      "sheet_png": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_mage_sheet.png",
+      "sheet_json": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_mage_sheet.json",
+      "preview_gif": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_mage_preview.gif",
+      "godot_spriteframes": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_mage_spriteframes.tres",
+      "preview_png": "game_assets\\experimental\\exp_mage_preview.png"
+    },
+    "qa": {
+      "asset_name": "exp_mage",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "passed": true,
+          "details": {
+            "actual": [
+              16,
+              16
+            ],
+            "expected": [
+              16,
+              16
+            ]
+          }
+        },
+        "alpha_hygiene": {
+          "passed": true,
+          "details": {
+            "semi_transparent_pixel_count": 0,
+            "sample_coords": []
+          }
+        },
+        "palette_adherence": {
+          "passed": true,
+          "details": {
+            "unique_colors_used": 6,
+            "unauthorized_colors": [],
+            "palette_name": "db16"
+          }
+        },
+        "cluster_coherence": {
+          "passed": true,
+          "details": {
+            "orphan_pixel_count": 0,
+            "samples": []
+          }
+        },
+        "animation_alignment": {
+          "passed": true,
+          "details": {
+            "contact_zone": [
+              6,
+              10
+            ],
+            "foot_baselines": [
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15
+            ],
+            "max_drift_px": 0,
+            "strict_constraint": false
+          }
+        }
+      },
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    }
+  },
+  "exp_goblin": {
+    "name": "Goblin Rogue",
+    "export": {
+      "name": "Goblin Rogue",
+      "character_id": "exp_goblin",
+      "aseprite_project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_goblin.aseprite",
+      "size": "16x16",
+      "tags": [
+        "idle",
+        "walk",
+        "attack",
+        "hurt"
+      ],
+      "layers": [
+        "Shadow",
+        "Body",
+        "Clothes",
+        "Gear"
+      ],
+      "pivot": [
+        0.5,
+        0.9
+      ],
+      "sheet_png": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_goblin_sheet.png",
+      "sheet_json": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_goblin_sheet.json",
+      "preview_gif": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_goblin_preview.gif",
+      "godot_spriteframes": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_goblin_spriteframes.tres",
+      "preview_png": "game_assets\\experimental\\exp_goblin_preview.png"
+    },
+    "qa": {
+      "asset_name": "exp_goblin",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "passed": true,
+          "details": {
+            "actual": [
+              16,
+              16
+            ],
+            "expected": [
+              16,
+              16
+            ]
+          }
+        },
+        "alpha_hygiene": {
+          "passed": true,
+          "details": {
+            "semi_transparent_pixel_count": 0,
+            "sample_coords": []
+          }
+        },
+        "palette_adherence": {
+          "passed": true,
+          "details": {
+            "unique_colors_used": 8,
+            "unauthorized_colors": [],
+            "palette_name": "db16"
+          }
+        },
+        "cluster_coherence": {
+          "passed": false,
+          "details": {
+            "orphan_pixel_count": 3,
+            "samples": [
+              [
+                3,
+                5
+              ],
+              [
+                12,
+                5
+              ],
+              [
+                12,
+                7
+              ]
+            ]
+          }
+        },
+        "animation_alignment": {
+          "passed": true,
+          "details": {
+            "contact_zone": [
+              6,
+              10
+            ],
+            "foot_baselines": [
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15
+            ],
+            "max_drift_px": 0,
+            "strict_constraint": false
+          }
+        }
+      },
+      "critical_errors": [],
+      "warnings": [
+        "Cluster noise detected: found 3 isolated orphan pixels with 0 neighbors (samples: [(3, 5), (12, 5), (12, 7)])."
+      ],
+      "ready_for_export": true
+    }
+  },
+  "exp_heavy_brute": {
+    "name": "Dwarf Brute",
+    "export": {
+      "name": "Dwarf Brute",
+      "character_id": "exp_heavy_brute",
+      "aseprite_project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_heavy_brute.aseprite",
+      "size": "16x16",
+      "tags": [
+        "idle",
+        "walk",
+        "attack",
+        "hurt"
+      ],
+      "layers": [
+        "Shadow",
+        "Body",
+        "Clothes",
+        "Gear"
+      ],
+      "pivot": [
+        0.5,
+        0.9
+      ],
+      "sheet_png": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_heavy_brute_sheet.png",
+      "sheet_json": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_heavy_brute_sheet.json",
+      "preview_gif": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_heavy_brute_preview.gif",
+      "godot_spriteframes": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental\\exp_heavy_brute_spriteframes.tres",
+      "preview_png": "game_assets\\experimental\\exp_heavy_brute_preview.png"
+    },
+    "qa": {
+      "asset_name": "exp_heavy_brute",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "passed": true,
+          "details": {
+            "actual": [
+              16,
+              16
+            ],
+            "expected": [
+              16,
+              16
+            ]
+          }
+        },
+        "alpha_hygiene": {
+          "passed": true,
+          "details": {
+            "semi_transparent_pixel_count": 0,
+            "sample_coords": []
+          }
+        },
+        "palette_adherence": {
+          "passed": true,
+          "details": {
+            "unique_colors_used": 8,
+            "unauthorized_colors": [],
+            "palette_name": "db16"
+          }
+        },
+        "cluster_coherence": {
+          "passed": true,
+          "details": {
+            "orphan_pixel_count": 0,
+            "samples": []
+          }
+        },
+        "animation_alignment": {
+          "passed": true,
+          "details": {
+            "contact_zone": [
+              6,
+              10
+            ],
+            "foot_baselines": [
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15,
+              15
+            ],
+            "max_drift_px": 0,
+            "strict_constraint": false
+          }
+        }
+      },
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    }
+  }
+}

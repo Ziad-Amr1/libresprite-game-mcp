@@ -54,6 +54,7 @@ class CharacterBlueprint(BaseModel):
     name: str
     size: Tuple[int, int] = (16, 16)
     proportion: str = Field(default="chibi_1_2", description="Options: chibi_1_2, sd_1_1, heroic_1_3")
+    archetype: Optional[str] = Field(default=None, description="Options: knight, mage, goblin, heavy_brute, rogue, hero")
     colors: Dict[str, str] = Field(default_factory=dict)
     views: List[str] = Field(default_factory=lambda: ["down", "left", "right", "up"])
     animations: Dict[str, CharacterAnimationSpec] = Field(default_factory=dict)
