@@ -32,3 +32,9 @@ test_fixtures_workspace/
 *.session_token
 mcp_session_token.json
 *.test_mode
+
+# Local database runtime files
+*.db
+*.db-shm
+*.db-wal
+data/learning/*.db*

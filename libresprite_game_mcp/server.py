@@ -445,6 +445,85 @@ def live_create_canvas(width: int = 16, height: int = 16, color_mode: str = "rgb
     return live_execute_safe_command("create_canvas", {"width": width, "height": height, "colorMode": color_mode})
 
 
+# -----------------------------------------------------------------------------
+# Learning Layer & Skill Builder Production Tools
+# -----------------------------------------------------------------------------
+from libresprite_game_mcp.core.orchestrator import ProductionOrchestrator
+
+orchestrator = ProductionOrchestrator()
+
+
+@mcp.tool()
+def list_applicable_skills(
+    task_category: str = "character",
+    perspective: str = "top_down",
+    art_profile_name: Optional[str] = None,
+) -> List[Dict]:
+    """
+    Discovers approved production Skills matching the current task category and art profile.
+    """
+    context = {"task_category": task_category, "perspective": perspective}
+    skills = orchestrator.find_applicable_skills(context, art_profile_name=art_profile_name)
+    return [s.model_dump() for s in skills]
+
+
+@mcp.tool()
+def execute_production_skill(
+    skill_id: str,
+    version: Optional[str] = None,
+    parameters: Optional[Dict[str, Any]] = None,
+    project_id: str = "default",
+) -> Dict:
+    """
+    Executes an approved deterministic production Skill, enforces QA checks,
+    and logs experience telemetry into the Learning Layer.
+    """
+    return orchestrator.execute_skill(
+        skill_id=skill_id,
+        version=version,
+        parameters=parameters,
+        project_id=project_id,
+    )
+
+
+@mcp.tool()
+def get_learning_guidance(
+    project_id: Optional[str] = None,
+    task_category: str = "character",
+    width: int = 16,
+    height: int = 16,
+) -> Dict:
+    """
+    Retrieves learned Art Bible constraints, recommended palettes, and outline modes
+    for the specified task category and resolution, respecting project isolation.
+    """
+    return orchestrator.get_knowledge_guidance(
+        project_id=project_id,
+        task_category=task_category,
+        resolution=(width, height),
+    )
+
+
+@mcp.tool()
+def record_user_feedback(
+    experience_id: str,
+    feedback_type: str = "approval",  # "approval", "rejection", "correction", "preference"
+    rating: Optional[float] = None,   # 1.0 - 5.0
+    notes: Optional[str] = None,
+) -> Dict:
+    """
+    Records human approval, rejection, or feedback for a completed asset generation,
+    updating empirical confidence scores across related knowledge rules.
+    """
+    fb = orchestrator.record_feedback(
+        experience_id=experience_id,
+        feedback_type=feedback_type,
+        user_rating=rating,
+        notes=notes,
+    )
+    return fb.model_dump()
+
+
 def main():
     ensure_relay_running()
     mcp.run()

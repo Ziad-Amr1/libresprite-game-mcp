@@ -1,0 +1,96 @@
+{
+  "skill_id": "pixel_character_consistency",
+  "version": "1.0.0",
+  "name": "Pixel Character Consistency",
+  "description": "Production workflow generating consistent chibi character sprites with outlines and Godot 4 exports.",
+  "status": "APPROVED",
+  "trigger_conditions": {
+    "task_category": "character",
+    "perspective": "top_down"
+  },
+  "required_tools": [
+    "generate_character",
+    "apply_outline",
+    "validate_asset",
+    "export_godot_spritesheet"
+  ],
+  "parameters_schema": {
+    "character_id": {
+      "type": "string",
+      "description": "Character ID"
+    },
+    "name": {
+      "type": "string",
+      "description": "Character Name"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        16,
+        16
+      ]
+    },
+    "proportion": {
+      "type": "string",
+      "default": "chibi_1_2"
+    },
+    "outline_mode": {
+      "type": "string",
+      "default": "colored"
+    }
+  },
+  "workflow": [
+    {
+      "step_id": "step_1_generate",
+      "tool_name": "generate_character",
+      "description": "Generates base character anatomy and palette",
+      "parameters": {
+        "size": [
+          16,
+          16
+        ],
+        "proportion": "chibi_1_2"
+      },
+      "expected_output_type": "dict"
+    },
+    {
+      "step_id": "step_2_outline",
+      "tool_name": "apply_outline",
+      "description": "Applies stylized outline and cleans isolated orphan pixels",
+      "parameters": {
+        "mode": "colored",
+        "source_step": "step_1_generate"
+      },
+      "expected_output_type": "dict"
+    },
+    {
+      "step_id": "step_3_validate",
+      "tool_name": "validate_asset",
+      "description": "Performs automated Art QA validation checks",
+      "parameters": {
+        "source_step": "step_2_outline"
+      },
+      "expected_output_type": "dict"
+    },
+    {
+      "step_id": "step_4_export",
+      "tool_name": "export_godot_spritesheet",
+      "description": "Packs sprite sheet and generates Godot 4 SpriteFrames resource",
+      "parameters": {
+        "source_step": "step_3_validate"
+      },
+      "expected_output_type": "dict"
+    }
+  ],
+  "validation_rules": {
+    "require_qa_pass": true,
+    "max_color_count": 16
+  },
+  "art_profile_compatibility": [
+    "DefaultGame",
+    "RetroFantasy"
+  ],
+  "author": "ArtDirector_Lead",
+  "created_at": "2026-11-24T10:20:05.730453Z",
+  "updated_at": "2026-11-24T10:20:05.730453Z"
+}
