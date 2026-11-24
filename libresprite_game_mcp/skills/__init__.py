@@ -8,6 +8,11 @@ from libresprite_game_mcp.skills.builder import (
     InvalidWorkflowError,
     SkillBuilder,
 )
+from libresprite_game_mcp.skills.lifecycle import (
+    AutonomousApprovalError,
+    InvalidStateTransitionError,
+    SkillLifecycleManager,
+)
 from libresprite_game_mcp.skills.models import (
     ApprovalAction,
     SkillApprovalRecord,
@@ -22,6 +27,10 @@ from libresprite_game_mcp.skills.repository import (
     ImmutableSkillError,
     SkillRepository,
 )
+from libresprite_game_mcp.skills.sandbox import (
+    SandboxEvaluator,
+    SkillTestCase,
+)
 from libresprite_game_mcp.skills.versioning import (
     bump_semver,
     compare_semver,
@@ -32,16 +41,21 @@ from libresprite_game_mcp.skills.versioning import (
 __all__ = [
     "APPROVED_MCP_TOOLS",
     "ApprovalAction",
+    "AutonomousApprovalError",
     "ImmutableSkillError",
+    "InvalidStateTransitionError",
     "InvalidWorkflowError",
+    "SandboxEvaluator",
     "SkillApprovalRecord",
     "SkillBuilder",
     "SkillDefinition",
     "SkillEvaluationRecord",
     "SkillExecutionResult",
+    "SkillLifecycleManager",
     "SkillRegistry",
     "SkillRepository",
     "SkillStatus",
+    "SkillTestCase",
     "WorkflowStep",
     "bump_semver",
     "compare_semver",
