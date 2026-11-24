@@ -114,14 +114,15 @@ class TestRelayHttpIntegration:
         )
         assert status == 401
 
-        # 4. Invalid query parameter token
+        # 4. Query parameter token must be REJECTED (query params disallowed for auth)
         status, body = send_http(
-            f"{self.base_url}/poll?token=wrong_query_token",
+            f"{self.base_url}/poll?token={self.state.session_token}",
             method="POST",
             headers={"Content-Type": "application/json", "Content-Length": "2"},
             data=b"{}",
         )
         assert status == 401
+        assert "Unauthorized" in body.get("error", "")
 
         # 5. Invalid body token
         bad_body = json.dumps({"session_token": "wrong_body_token"}).encode("utf-8")
@@ -133,8 +134,8 @@ class TestRelayHttpIntegration:
         )
         assert status == 401
 
-    def test_authenticated_requests_supported_via_all_mechanisms(self):
-        """Valid session token accepted via header, query parameter, or JSON body."""
+    def test_authenticated_requests_supported_via_header_and_body(self):
+        """Valid session token accepted strictly via header or JSON body."""
         valid_tok = self.state.session_token
 
         # Mechanism 1: HTTP Header (X-MCP-Token)
@@ -154,10 +155,10 @@ class TestRelayHttpIntegration:
         assert self.state.is_alive()
         assert self.state.client_info.get("mode") == "header_test"
 
-        # Mechanism 2: Query parameter (?token=)
-        body2 = json.dumps({"client_info": {"mode": "query_test"}}).encode("utf-8")
+        # Mechanism 2: JSON body field (session_token)
+        body2 = json.dumps({"session_token": valid_tok, "client_info": {"mode": "body_test"}}).encode("utf-8")
         status, data = send_http(
-            f"{self.base_url}/poll?token={valid_tok}",
+            f"{self.base_url}/poll",
             method="POST",
             headers={
                 "Content-Type": "application/json",
@@ -166,12 +167,12 @@ class TestRelayHttpIntegration:
             data=body2,
         )
         assert status == 200
-        assert self.state.client_info.get("mode") == "query_test"
+        assert self.state.client_info.get("mode") == "body_test"
 
-        # Mechanism 3: JSON body field (session_token)
-        body3 = json.dumps({"session_token": valid_tok, "client_info": {"mode": "body_test"}}).encode("utf-8")
+        # Mechanism 3: Query parameter MUST NOT be accepted
+        body3 = json.dumps({"client_info": {"mode": "query_test"}}).encode("utf-8")
         status, data = send_http(
-            f"{self.base_url}/poll",
+            f"{self.base_url}/poll?token={valid_tok}",
             method="POST",
             headers={
                 "Content-Type": "application/json",
@@ -179,8 +180,36 @@ class TestRelayHttpIntegration:
             },
             data=body3,
         )
-        assert status == 200
-        assert self.state.client_info.get("mode") == "body_test"
+        assert status == 401
+
+    def test_token_provisioning_failure_handling(self):
+        """If token provisioning fails, the state reports error and blocks authentication."""
+        unprov_state = RelayState(port=self.port, write_token=False)
+        unprov_state.token_provisioned = False
+        unprov_state.token_error = "Simulated disk write failure"
+
+        # 1. is_alive() must report False
+        assert not unprov_state.is_alive()
+
+        # 2. queue_command() must report provisioning error
+        res = unprov_state.queue_command({"type": "get_preview"})
+        assert res.get("status") == "error"
+        assert "Session token provisioning failed" in res.get("error", "")
+
+        # 3. Request handler bound to unprovisioned state must reject requests
+        unprov_server = RelayServer(port=find_free_port(), relay_state=unprov_state)
+        unprov_server.start()
+        try:
+            body = json.dumps({"session_token": unprov_state.session_token}).encode("utf-8")
+            status, _ = send_http(
+                f"http://127.0.0.1:{unprov_server.port}/poll",
+                method="POST",
+                headers={"Content-Length": str(len(body))},
+                data=body,
+            )
+            assert status == 401
+        finally:
+            unprov_server.stop()
 
     def test_payload_bounds_and_malformed_json(self):
         """Enforces 5MB size limits, valid headers, and well-formed JSON."""

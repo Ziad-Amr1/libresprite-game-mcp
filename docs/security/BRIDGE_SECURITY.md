@@ -1,7 +1,7 @@
 # LibreSprite Game MCP: Bridge Security Model & Architecture
 
 **Document:** `docs/security/BRIDGE_SECURITY.md`  
-**Version:** 2.1 (Hardened Authentication, Concurrency Safety & Command Correlation)  
+**Version:** 2.2 (Body-Only Authentication, Token Storage Hardening & Masking)  
 **Threat Model & Implementation Standards**  
 
 ---
@@ -16,19 +16,23 @@ The LibreSprite Live GUI bridge operates via a local HTTP relay daemon listening
    - *Exploit*: With wildcard CORS (`Access-Control-Allow-Origin: *`), the browser permits cross-origin reading and command execution.
 2. **Session Hijacking & Unauthorized Local Access**:
    - *Risk*: Other untrusted processes running on the local host attempting to inject commands into the LibreSprite workspace.
-3. **Prototype Pollution / Object Property Exploitation**:
+3. **URL Query Parameter Credential Leakage**:
+   - *Risk*: Passing authentication tokens in URL query strings exposes credentials in HTTP server access logs, reverse proxies, and error traces.
+4. **Prototype Pollution / Object Property Exploitation**:
    - *Risk*: JavaScript objects check properties up the prototype chain.
    - *Exploit*: Sending `cmdType: "constructor"`, `"toString"`, or `"__proto__"` passes standard `cmdType in ALLOWED_COMMANDS` checks and executes native object prototypes.
-4. **Race Conditions, Command Overwriting & Stale Response Captures**:
+5. **Race Conditions, Command Overwriting & Stale Response Captures**:
    - *Risk*: Concurrent tool invocations overwriting pending commands, or delayed responses from timed-out commands being mistakenly consumed by a subsequent command.
-5. **Deadlocks in Multithreaded Relay**:
+6. **Deadlocks in Multithreaded Relay**:
    - *Risk*: Nested lock acquisition within the relay daemon freezing the MCP server and hanging tool requests.
-6. **Denial of Service via Unbounded Dimensions**:
+7. **Denial of Service via Unbounded Dimensions**:
    - *Risk*: Passing coordinates or dimensions like `w: 10000000` causes huge pixel iteration loops, hanging the LibreSprite UI.
-7. **Arbitrary Filesystem Write**:
+8. **Arbitrary Filesystem Write**:
    - *Risk*: Unvalidated `save_sprite` with `path: "C:\\Windows\\System32\\..."` allows saving over critical system files.
-8. **Memory Exhaustion via Oversized Payloads**:
+9. **Memory Exhaustion via Oversized Payloads**:
    - *Risk*: Sending gigabyte-sized payloads to `/poll` or `/result` exhausts daemon heap space.
+10. **Silent Token Storage Failure**:
+    - *Risk*: Swallowing filesystem or permission errors during token generation leads to broken or unauthenticated states that falsely appear operational.
 
 ---
 
@@ -40,19 +44,23 @@ The LibreSprite Live GUI bridge operates via a local HTTP relay daemon listening
   ```python
   session_token = secrets.token_hex(16)
   ```
-* **Dual Storage Channels**:
+* **Dual Storage Channels & Domain Binding**:
   The token is written to two locations inside the user's private application roaming directory (`%APPDATA%\LibreSprite\`):
   1. `%APPDATA%\LibreSprite\libresprite_mcp_bridge.js.session_token`:
-     Directly ingested by LibreSprite's Duktape native `storage.load("session_token")`.
+     Directly ingested by LibreSprite's Duktape native `storage.load("session_token", SCRIPT_DOMAIN)`.
   2. `%APPDATA%\LibreSprite\mcp_session_token.json`:
      Structured JSON document containing `{ "session_token": "...", "port": 64823 }` for external tools.
-* **Multi-Channel Authentication**:
-  LibreSprite's C++ `storage.fetch` supports only a single header key/value pair (reserved for `Content-Type: application/json`). The relay accepts the session token via:
+* **Storage Reliability Enforcement**:
+  `_write_session_token()` validates the directory path, captures permissions or I/O errors, records them in `state.token_error`, and sets `state.token_provisioned = False`. If provisioning fails, all requests are rejected and tools report provisioning errors explicitly.
+* **Body-Only & Header Authentication**:
+  LibreSprite's C++ `storage.fetch` supports only a single header key/value pair (reserved for `Content-Type: application/json`). The relay accepts the session token strictly via:
   1. `X-MCP-Token` HTTP Header (for standard HTTP clients/tests)
-  2. `?token=<token>` URL query parameter (for LibreSprite `storage.fetch`)
-  3. `{"session_token": "<token>"}` in JSON request body (for LibreSprite `storage.fetch`)
+  2. `{"session_token": "<token>"}` in JSON request body (for LibreSprite `storage.fetch`)
+  *URL query parameters (`?token=`) are strictly forbidden and rejected with 401.*
 * **Constant-Time Verification**:
   Tokens are verified using `secrets.compare_digest` to prevent timing side-channel attacks.
+* **Credential Masking**:
+  All logs, diagnostics, and documentation mask tokens (e.g. `26239d...[MASKED]`).
 * **Token Rotation**:
   Calling `state.rotate_session_token()` updates disk credentials and immediately invalidates any connection presenting the old token.
 
@@ -98,6 +106,7 @@ Properties inherited from prototypes (`constructor`, `toString`, `valueOf`, `__p
 
 ### F. Parameter Typing & Boundary Constraints
 * **`create_canvas`**: $1 \le \text{width}, \text{height} \le 2048$, `colorMode` in `{"rgba", "indexed"}`.
-* **`put_pixel`**: $0 \le x < \text{width}$, $0 \le y < \text{height}$, $r, g, b, a \in [0, 255]$.
+* **`put_pixel`**: $0 \le x < \text{width}$, $0 \le y < \text{height}$, $r, g, b, a \in [0, 255]$. Returns internal readback verification.
 * **`draw_rect`**: $1 \le w, h \le 2048$, coordinates clamped to image dimensions.
 * **`save_sprite`**: Traversal sequences (`..`) strictly rejected; workspace boundaries enforced.
+* **`exit_session`**: Closes the active session and exits LibreSprite cleanly.

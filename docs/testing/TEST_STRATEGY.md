@@ -1,7 +1,7 @@
 # Test Strategy: LibreSprite Production Verification
 
 **Document:** `docs/testing/TEST_STRATEGY.md`  
-**Version:** 2.1 (Live Bridge Runtime Verification & Reliability)  
+**Version:** 2.2 (Production Bridge Execution & Pixel Modification Verification)  
 
 ---
 
@@ -12,7 +12,7 @@ In game toolchains and live engine bridges, unit test green checks must correlat
 Every test tier must:
 1. **Assert Negative Cases**: Verify that illegal paths, invalid commands, expired tokens, oversized payloads, and corrupt data fail with explicit typed exceptions or HTTP error codes.
 2. **Assert Data Integrity**: Verify mathematical coordinates, frame durations, and color hex values rather than simple file existence.
-3. **Execute Real Integration**: Network and bridge layers must run against real TCP sockets and real binaries, not solely mocked wrappers.
+3. **Execute Real Integration with Production Code**: Bridge tests must exercise the actual production script (`libresprite_mcp_bridge.js`), not mock scripts or duplicated protocols.
 4. **Isolate Fixtures**: Never pollute production project folders with temporary test outputs.
 
 ---
@@ -44,7 +44,8 @@ Every test tier must:
 * **Legacy Compatibility**: Verifies that `create_character_sprite` translates legacy arguments to `CharacterBlueprint` without breaking older clients.
 
 ### Suite 5: Real HTTP Relay Integration (`tests/test_relay_http_integration.py`)
-* **Authentication**: Verifies that `/poll` and `/result` return 401 for unauthenticated requests and 200 for valid tokens across HTTP headers, query params (`?token=`), and JSON body (`session_token`).
+* **Body and Header Authentication**: Verifies that `/poll` and `/result` return 401 for unauthenticated requests and 200 for valid tokens across HTTP headers and JSON bodies (`session_token`). Rejects query parameter tokens.
+* **Token Storage Failure Handling**: Verifies that failure to provision tokens disables authentication and reports explicit errors.
 * **Command Lifecycle**: Verifies queuing, popping, execution correlation, and result delivery over real TCP HTTP connections.
 * **Concurrency Safety**: Verifies that concurrent `queue_command` calls are rejected rather than overwriting in-flight commands.
 * **Timeout & Stale Responses**: Verifies that timed-out commands do not capture later delayed responses and late responses are flagged as `ignored`.
@@ -53,9 +54,14 @@ Every test tier must:
 * **Token Rotation**: Verifies that `rotate_session_token()` invalidates old credentials immediately.
 * **Server Lifecycle**: Verifies clean shutdown, port release, and restart on the same port.
 
-### Suite 6: Live Engine Runtime Verification (`tests/test_libresprite_live_runtime.py`)
-* **Live Binary Execution**: Spawns actual `libresprite.exe --script <test_script.js>`.
-* **Token Handshake**: Verifies that LibreSprite loads the session token from `%APPDATA%\LibreSprite\`, authenticates with the relay, retrieves queued commands, executes them, returns correlated results, and shuts down cleanly via `app.command.Exit()`.
+### Suite 6: Production Bridge Live Execution & Pixel Verification (`tests/test_libresprite_live_runtime.py`)
+* **Production Script Execution**: Executes the actual production script `libresprite_game_mcp/bridge/libresprite_mcp_bridge.js` inside `libresprite.exe`.
+* **Native Token Ingestion**: Verifies token loading via Duktape `storage.load("session_token", SCRIPT_DOMAIN)`.
+* **Real Pixel Modification**: Dispatches `put_pixel`, modifies active canvas image, and verifies color readback inside LibreSprite.
+* **External Decoded Verification**: Dispatches `get_preview`, decodes PNG base64, and asserts painted pixel values in Python.
+* **Boundary Validation**: Tests out-of-bounds coordinates and asserts error response.
+* **Allowlist Enforcement**: Tests prototype pollution (`constructor`) and asserts security rejection.
+* **Clean Shutdown**: Dispatches `exit_session` and verifies clean exit of the LibreSprite process with code 0.
 
 ---
 
@@ -63,7 +69,7 @@ Every test tier must:
 
 | Engine | Local Environment Status | Test Tier Applied | Outcome |
 | :--- | :--- | :--- | :---: |
-| **LibreSprite 1.1-dev** | Installed (`libresprite.exe` detected) | Live Process & TCP Roundtrip | **PASS** |
+| **LibreSprite 1.1-dev** | Installed (`libresprite.exe` detected) | Production Bridge & Pixel Operations | **PASS** |
 | **Godot 4.x** | Not installed (`godot` command not found) | Static Syntax & Resource Structural Analysis | **NOT EXECUTED** (Syntax: **PASS**) |
 
 *Note: Godot engine syntax and resource files (`.tres`) have passed 100% structural verification according to the Godot 4.x text resource specification. Headless engine import testing must be executed in a CI/CD environment equipped with `godot.exe`.*

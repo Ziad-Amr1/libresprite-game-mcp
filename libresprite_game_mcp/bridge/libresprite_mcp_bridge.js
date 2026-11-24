@@ -1,9 +1,10 @@
 // LibreSprite Game MCP Bridge Script
 // Hardened command bridge connecting LibreSprite GUI with AI assistants.
-// Version: 2.1 (Hardened Authentication & Command Correlation)
+// Version: 2.2 (Body-Only Authentication & Headless Test Support)
 // Copyright (C) 2026 Antigravity / DeepMind
 
 const MCP_ENDPOINT = "http://127.0.0.1:64823";
+const SCRIPT_DOMAIN = "libresprite_mcp_bridge.js";
 
 // Strict allowlist with parameter validation and boundary enforcement
 const ALLOWED_COMMANDS = {
@@ -71,7 +72,17 @@ const ALLOWED_COMMANDS = {
         var col = app.pixelColor;
         var c = col.rgba(r, g, b, a);
         app.activeImage.putPixel(Math.floor(x), Math.floor(y), c);
-        return { message: "Pixel placed" };
+
+        // Verification: Read back written pixel directly from active image
+        var readback = app.activeImage.getPixel(Math.floor(x), Math.floor(y));
+        return {
+            message: "Pixel placed",
+            x: Math.floor(x),
+            y: Math.floor(y),
+            color: [r, g, b, a],
+            pixel_value: readback,
+            verified: (readback === c)
+        };
     },
 
     draw_rect: function(params) {
@@ -110,29 +121,55 @@ const ALLOWED_COMMANDS = {
         var col = app.pixelColor;
         app.activeImage.clear(col.rgba(0, 0, 0, 0));
         return { message: "Canvas cleared" };
+    },
+
+    exit_session: function(params) {
+        mcpBridge.stop();
+        if (app.command && typeof app.command.Exit === "function") {
+            app.command.Exit();
+        }
+        return { message: "Bridge session closed and application exited." };
     }
 };
 
 var mcpBridge = {
     connected: false,
+    testMode: false,
     sessionToken: "",
     pollKey: "mcp_poll",
     resultKey: "mcp_result",
     dialog: null,
 
-    init: function() {
+    init: function(options) {
+        options = options || {};
         var self = this;
-        // Auto-load session token from LibreSprite native storage
+
+        // Auto-load session token from LibreSprite native storage using explicit domain
         if (typeof storage !== "undefined" && typeof storage.load === "function") {
-            if (storage.load("session_token")) {
-                this.sessionToken = storage.get("session_token") || "";
+            if (storage.load("session_token", SCRIPT_DOMAIN) || storage.load("session_token")) {
+                this.sessionToken = storage.get("session_token", SCRIPT_DOMAIN) || storage.get("session_token") || "";
+            }
+            if (storage.load("test_mode", SCRIPT_DOMAIN) || storage.load("test_mode")) {
+                this.testMode = (storage.get("test_mode", SCRIPT_DOMAIN) === "true") || (storage.get("test_mode") === "true");
             }
         }
 
+        if (options.testMode) {
+            this.testMode = true;
+        }
+
+        // Test Mode: Auto-connect immediately without showing blocking modal GUI dialog
+        if (this.testMode) {
+            this.start();
+            return;
+        }
+
+        // Interactive GUI Mode: Present connection dialog
         this.dialog = app.createDialog("mcpBridgeDialog");
         this.dialog.title = "LibreSprite Game MCP Bridge (Hardened)";
         this.dialog.addLabel("Status: Ready to connect");
-        this.dialog.addLabel("Token: " + (this.sessionToken ? "Loaded (" + this.sessionToken.substring(0, 6) + "...)" : "Not found"));
+        var maskedToken = this.sessionToken ? (this.sessionToken.substring(0, 6) + "...[MASKED]") : "Not found";
+        this.dialog.addLabel("Token: " + maskedToken);
         this.dialog.addButton("Connect", function() {
             self.start();
         });
@@ -168,18 +205,15 @@ var mcpBridge = {
         if (!this.connected) return;
         var self = this;
         var info = this.getSpriteInfo();
+
+        // Security: Token passed strictly in JSON body, never in URL query parameter
         var body = JSON.stringify({
             session_token: self.sessionToken,
             client_info: info
         });
 
-        var url = MCP_ENDPOINT + "/poll";
-        if (self.sessionToken) {
-            url += "?token=" + encodeURIComponent(self.sessionToken);
-        }
-
         storage.fetch(
-            url,
+            MCP_ENDPOINT + "/poll",
             self.pollKey,
             "",
             "POST",
@@ -202,14 +236,11 @@ var mcpBridge = {
             resultData.error = payload;
         }
 
+        // Security: Token passed strictly in JSON body, never in URL query parameter
         var body = JSON.stringify(resultData);
-        var url = MCP_ENDPOINT + "/result";
-        if (self.sessionToken) {
-            url += "?token=" + encodeURIComponent(self.sessionToken);
-        }
 
         storage.fetch(
-            url,
+            MCP_ENDPOINT + "/result",
             self.resultKey,
             "",
             "POST",
@@ -239,9 +270,13 @@ var mcpBridge = {
 
         try {
             var res = null;
-            app.transaction(function() {
+            if (typeof app.transaction === "function") {
+                app.transaction(function() {
+                    res = ALLOWED_COMMANDS[cmdType](params);
+                });
+            } else {
                 res = ALLOWED_COMMANDS[cmdType](params);
-            });
+            }
             self.sendResult(commandId, "success", res);
         } catch (ex) {
             self.sendResult(commandId, "error", ex.toString());

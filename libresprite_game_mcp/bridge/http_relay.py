@@ -18,7 +18,7 @@ import secrets
 import threading
 import time
 import uuid
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any, Dict, Optional, Type
@@ -34,7 +34,7 @@ class RelayState:
     Thread-safe state container managing communication between MCP and LibreSprite GUI.
     """
 
-    def __init__(self, port: int = DEFAULT_PORT):
+    def __init__(self, port: int = DEFAULT_PORT, write_token: bool = True):
         self.lock = threading.Lock()
         self.port = port
         self.connected = False
@@ -46,17 +46,31 @@ class RelayState:
         self.client_info: Dict[str, Any] = {}
         # Cryptographically secure session token
         self.session_token = secrets.token_hex(16)
-        self._write_session_token()
+        self.token_provisioned: bool = False
+        self.token_error: Optional[str] = None
+        if write_token:
+            self._write_session_token(raise_on_error=False)
 
-    def _write_session_token(self) -> None:
+    def masked_token(self) -> str:
+        """Returns masked session token safe for logs and diagnostics."""
+        if not self.session_token:
+            return "[NO_TOKEN]"
+        return f"{self.session_token[:6]}...[MASKED]"
+
+    def _write_session_token(self, raise_on_error: bool = False) -> None:
         """
         Writes session token to both LibreSprite's native script storage location
         and a standard JSON token file for tooling and inspection.
+        Detects and records any directory, permission, or I/O failures.
         """
         try:
             scripts_dir = get_libresprite_scripts_dir()
             roaming_dir = scripts_dir.parent
-            roaming_dir.mkdir(parents=True, exist_ok=True)
+            if not roaming_dir.exists():
+                roaming_dir.mkdir(parents=True, exist_ok=True)
+
+            if not roaming_dir.is_dir():
+                raise NotADirectoryError(f"LibreSprite roaming directory is not a directory: {roaming_dir}")
 
             # 1. Native LibreSprite storage file: <Roaming>/LibreSprite/libresprite_mcp_bridge.js.session_token
             # Loaded automatically by `storage.load("session_token")` in the bridge script.
@@ -68,14 +82,25 @@ class RelayState:
             json_token_file = roaming_dir / "mcp_session_token.json"
             with open(json_token_file, "w", encoding="utf-8") as f:
                 json.dump({"session_token": self.session_token, "port": self.port}, f, indent=2)
-        except Exception:
-            pass
 
-    def rotate_session_token(self) -> str:
+            self.token_provisioned = True
+            self.token_error = None
+        except PermissionError as pe:
+            self.token_provisioned = False
+            self.token_error = f"Permission denied writing session token: {pe}"
+            if raise_on_error:
+                raise
+        except Exception as ex:
+            self.token_provisioned = False
+            self.token_error = f"Failed to provision session token: {ex}"
+            if raise_on_error:
+                raise
+
+    def rotate_session_token(self, raise_on_error: bool = False) -> str:
         """Rotates the session token, invalidating old sessions."""
         with self.lock:
             self.session_token = secrets.token_hex(16)
-            self._write_session_token()
+            self._write_session_token(raise_on_error=raise_on_error)
             return self.session_token
 
     def _is_alive_locked(self, timeout_sec: float = 4.0) -> bool:
@@ -83,6 +108,8 @@ class RelayState:
         Internal check of connection health.
         MUST only be called when self.lock is already acquired.
         """
+        if not self.token_provisioned:
+            return False
         return self.connected and (time.time() - self.last_ping < timeout_sec)
 
     def is_alive(self, timeout_sec: float = 4.0) -> bool:
@@ -100,6 +127,12 @@ class RelayState:
         4. No stale consumption: if a command times out, late responses are safely ignored.
         """
         with self.lock:
+            if not self.token_provisioned:
+                return {
+                    "status": "error",
+                    "error": f"Session token provisioning failed: {self.token_error}. Cannot authenticate with LibreSprite."
+                }
+
             if not self._is_alive_locked():
                 return {
                     "status": "error",
@@ -170,7 +203,7 @@ class RelayState:
             self.command_event.set()  # Unblock any waiting thread
             self.client_info.clear()
             self.session_token = secrets.token_hex(16)
-            self._write_session_token()
+            self._write_session_token(raise_on_error=False)
 
 
 state = RelayState()
@@ -189,29 +222,27 @@ class RelayRequestHandler(BaseHTTPRequestHandler):
 
     def _is_authenticated(self, body_data: Optional[Dict[str, Any]] = None) -> bool:
         """
-        Verifies session token from:
+        Verifies session token strictly from:
         1. X-MCP-Token HTTP header (standard HTTP clients / CLI)
-        2. Query parameter `?token=<token>` (LibreSprite storage.fetch compatible)
-        3. JSON body field `session_token` (LibreSprite storage.fetch compatible)
+        2. JSON body field `session_token` (LibreSprite storage.fetch compatible)
+
+        SECURITY: URL query parameters are explicitly disallowed to prevent token exposure
+        in web server logs, proxies, and browser caches.
         Uses constant-time comparison (secrets.compare_digest).
         """
+        if not self.relay_state.token_provisioned:
+            return False
+
         target = self.relay_state.session_token
         if not target:
             return False
 
-        # 1. Header
+        # 1. HTTP Header authentication
         header_token = self.headers.get("X-MCP-Token")
         if header_token and secrets.compare_digest(header_token, target):
             return True
 
-        # 2. Query parameter
-        parsed = urlparse(self.path)
-        qs = parse_qs(parsed.query)
-        if "token" in qs and len(qs["token"]) > 0:
-            if secrets.compare_digest(qs["token"][0], target):
-                return True
-
-        # 3. Body field
+        # 2. JSON Body authentication
         if body_data and isinstance(body_data, dict):
             body_token = body_data.get("session_token")
             if isinstance(body_token, str) and secrets.compare_digest(body_token, target):
@@ -239,8 +270,12 @@ class RelayRequestHandler(BaseHTTPRequestHandler):
             with self.relay_state.lock:
                 last_ping = self.relay_state.last_ping
                 client_info = dict(self.relay_state.client_info)
+                token_provisioned = self.relay_state.token_provisioned
+                token_error = self.relay_state.token_error
             self._send_json({
                 "connected": alive,
+                "token_provisioned": token_provisioned,
+                "token_error": token_error,
                 "client_info": client_info if alive else {},
                 "last_ping_ago": (time.time() - last_ping) if last_ping else None,
             })
@@ -270,7 +305,7 @@ class RelayRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "Malformed JSON payload"}, 400)
             return
 
-        # Enforce Authentication (checking header, query param, or parsed body)
+        # Enforce Authentication (checking header or parsed body)
         if not self._is_authenticated(body):
             self._send_json({"error": "Unauthorized. Missing or invalid session token."}, 401)
             return

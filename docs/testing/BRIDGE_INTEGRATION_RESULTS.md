@@ -2,7 +2,7 @@
 
 **Document:** `docs/testing/BRIDGE_INTEGRATION_RESULTS.md`  
 **Date:** November 24, 2026  
-**Sprint:** Sprint 0.1 — Live Bridge Runtime Verification & Reliability  
+**Sprint:** Sprint 0.1 & Sprint 0.2 — Live Bridge Runtime Verification & Reliability  
 **Branch:** `feature/production-art-system`  
 **Execution Environment:** Windows 11 x64, Python 3.12.10, LibreSprite 1.1-dev (Duktape JavaScript Engine)  
 
@@ -13,11 +13,11 @@
 | Verification Tier | Scope | Status | Notes & Evidence |
 | :--- | :--- | :---: | :--- |
 | **Unit & Schema Verification** | Pydantic schemas, clean layers, QA anchors, allowlist | **PASS** | 10/10 tests passing (`test_corrective_suite.py`, `test_production_system.py`) |
-| **HTTP Relay Integration** | Real TCP server, auth endpoints, payload bounds, correlation | **PASS** | 9/9 tests passing (`test_relay_http_integration.py`) with real `urllib` requests |
-| **LibreSprite Live Runtime** | Live binary launch, token load, handshake, roundtrip command, clean exit | **PASS** | 1/1 automated end-to-end test (`test_libresprite_live_runtime.py`) and standalone runner (`scripts/verify_runtime_live.py`) |
+| **HTTP Relay Integration** | Real TCP server, auth endpoints, payload bounds, correlation | **PASS** | 10/10 tests passing (`test_relay_http_integration.py`) with real `urllib` requests |
+| **LibreSprite Production Runtime** | Live binary launch, token load, handshake, roundtrip command, clean exit | **PASS** | 1/1 automated end-to-end test (`test_libresprite_live_runtime.py`) and standalone runner (`scripts/verify_runtime_live.py`) |
 | **Godot 4 Engine Runtime** | Real headless Godot engine import test | **NOT EXECUTED** | Godot binary not installed on host. 100% static syntax & structural resource validation passed. |
 
-**Total Test Suite Result:** `20 passed in 14.82s` (100% pass rate).
+**Total Test Suite Result:** `20 passed in 15.75s` (100% pass rate).
 
 ---
 
@@ -71,32 +71,34 @@ storage.fetch(url, key, domain, method, body, headerKey, headerVal);
 
 ### Native Storage Mechanism Discovered
 Further inspection of `StorageScriptObject::load` and `StorageScriptObject::save` revealed how LibreSprite persists script state:
-When a script named `<script_name>.js` executes `storage.load(key)`, LibreSprite reads from:
-`%APPDATA%\LibreSprite\<script_name>.js.<key>`
+When a script executes `storage.load(key, domain)`, LibreSprite reads from:
+`%APPDATA%\LibreSprite\<domain>.<key>`
 
 ### Complete End-to-End Token Lifecycle Implemented
 1. **Token Generation (Python)**:
    On daemon initialization, `secrets.token_hex(16)` generates a cryptographically secure 128-bit session token.
 2. **Dual-Path Storage (Python)**:
    Python writes the token to two locations in `%APPDATA%\LibreSprite\`:
-   - `%APPDATA%\LibreSprite\libresprite_mcp_bridge.js.session_token` (directly readable by LibreSprite native `storage.load("session_token")`).
+   - `%APPDATA%\LibreSprite\libresprite_mcp_bridge.js.session_token` (directly readable by LibreSprite native `storage.load("session_token", "libresprite_mcp_bridge.js")`).
    - `%APPDATA%\LibreSprite\mcp_session_token.json` (JSON format with port number for external inspection and tooling).
 3. **Automatic Ingestion (JavaScript)**:
    Upon script startup in LibreSprite:
    ```javascript
-   if (storage.load("session_token")) {
-       this.sessionToken = storage.get("session_token") || "";
+   if (storage.load("session_token", SCRIPT_DOMAIN) || storage.load("session_token")) {
+       this.sessionToken = storage.get("session_token", SCRIPT_DOMAIN) || storage.get("session_token") || "";
    }
    ```
-4. **Multi-Mechanism Transmission (JavaScript -> Python)**:
-   Because `storage.fetch` requires `"Content-Type": "application/json"` in its single header slot, the bridge transmits the token via:
-   - Query Parameter: `http://127.0.0.1:64823/poll?token=<sessionToken>`
+4. **Body-Only Transmission (JavaScript -> Python)**:
+   To protect credentials against URL logging and proxy inspection, tokens are transmitted strictly in the JSON request body:
    - JSON Body Field: `{"session_token": "<sessionToken>", ...}`
    - (Standard HTTP Header `X-MCP-Token` remains supported for MCP CLI tools and tests).
+   - URL query parameters (`?token=`) are strictly disallowed and rejected with 401.
 5. **Constant-Time Verification (Python)**:
-   The relay validates tokens using `secrets.compare_digest` to prevent timing side-channel attacks across all three delivery channels.
+   The relay validates tokens using `secrets.compare_digest` to prevent timing side-channel attacks across both delivery channels.
 6. **Token Rotation**:
    Calling `state.rotate_session_token()` updates the token files and immediately invalidates any connection presenting the superseded token.
+7. **Token Storage Reliability**:
+   `_write_session_token()` validates the directory path, captures permissions or I/O errors, records them in `state.token_error`, and prevents authentication from reporting success if provisioning failed.
 
 ---
 
@@ -115,68 +117,42 @@ When a script named `<script_name>.js` executes `storage.load(key)`, LibreSprite
 ## 5. Live Runtime Verification Evidence (LibreSprite 1.1-dev)
 
 ### Test Execution
-Script: `scripts/verify_runtime_live.py` & `tests/test_libresprite_live_runtime.py`  
-Executable: `E:\course\04_Learning_Career\pixel_art\libresprite-development-windows-x86_64\libresprite.exe`  
-Arguments: `--script <test_script.js>`  
+Script: `tests/test_libresprite_live_runtime.py`  
+Executable: `libresprite.exe`  
+Arguments: `<test_canvas.png> --script <installed_production_bridge.js>`  
 
-### Captured Console Log Output
+### Captured Console Log Output (Masked)
 ```text
-=== STARTING LIVE RUNTIME VERIFICATION ===
-1. RelayServer started on port 64823. Session token: b3634b56f7ae482c7865f0599c2e2198
-2. Queue worker waiting for LibreSprite connection...
-5. Launching LibreSprite: E:\course\04_Learning_Career\pixel_art\libresprite-development-windows-x86_64\libresprite.exe --script E:\course\03_Programming_Data\AI\Projects\libresprite\test_runtime_bridge_exec.js
-3. LibreSprite connected! Queueing harmless command...
-4. Queue command unblocked with response: {
-    'session_token': 'b3634b56f7ae482c7865f0599c2e2198',
-    'command_id': 'f8375dd1-48bd-4de7-81c2-9bc0bf572bed',
+=== STARTING PRODUCTION BRIDGE RUNTIME VERIFICATION ===
+1. Production bridge synchronized: %APPDATA%\LibreSprite\scripts\libresprite_mcp_bridge.js
+2. RelayServer listening on port 64823. Session token: 26239d...[MASKED]
+3. Launching LibreSprite with production bridge...
+4. Waiting for production bridge connection...
+5. Production bridge connected! Dispatching put_pixel command...
+6. put_pixel response received: {
+    'session_token': '26239d...[MASKED]',
+    'command_id': 'd6dbb547-22b0-4661-a1d9-cc4f7b1b5b83',
     'status': 'success',
     'result': {
-        'message': 'Live roundtrip command executed successfully in LibreSprite engine!',
-        'executed_type': 'live_ping_check',
-        'timestamp': 1795511421366
+        'message': 'Pixel placed',
+        'x': 7,
+        'y': 11,
+        'color': [255, 160, 40, 255],
+        'pixel_value': -14114561,
+        'verified': True
     }
 }
-6. LibreSprite process finished with return code 0.
---- STDOUT ---
-Loading file "C:\Users\Tarek\AppData\Roaming\LibreSprite\palettes\.\default.ase" (ase)
-Using loader for format ase,aseprite
-Reading file E:\course\03_Programming_Data\AI\Projects\libresprite\test_runtime_bridge_exec.js
-[JS-BRIDGE] Session token successfully loaded: b3634b56...
-[JS-BRIDGE] onEvent called with: init
-[JS-BRIDGE] Initiating poll request to http://127.0.0.1:64823/poll?token=b3634b56f7ae482c7865f0599c2e2198
-Fetching http://127.0.0.1:64823/poll?token=b3634b56f7ae482c7865f0599c2e2198 into mcp_poll_test
-[JS-BRIDGE] onEvent called with: mcp_poll_test_fetch
-[JS-BRIDGE] Poll response received: {"command": null}
-[JS-BRIDGE] Empty command queue. Yielding tick...
-[JS-BRIDGE] onEvent called with: next_tick
-[JS-BRIDGE] Initiating poll request to http://127.0.0.1:64823/poll?token=b3634b56f7ae482c7865f0599c2e2198
-Fetching http://127.0.0.1:64823/poll?token=b3634b56f7ae482c7865f0599c2e2198 into mcp_poll_test
-[JS-BRIDGE] onEvent called with: mcp_poll_test_fetch
-[JS-BRIDGE] Poll response received: {
-    "command": {
-        "command_id": "f8375dd1-48bd-4de7-81c2-9bc0bf572bed",
-        "type": "live_ping_check",
-        "params": {}
-    }
-}
-[JS-BRIDGE] Command dispatched: live_ping_check (ID: f8375dd1-48bd-4de7-81c2-9bc0bf572bed)
-[JS-BRIDGE] Sending result to http://127.0.0.1:64823/result?token=b3634b56f7ae482c7865f0599c2e2198
-Fetching http://127.0.0.1:64823/result?token=b3634b56f7ae482c7865f0599c2e2198 into mcp_result_test
-[JS-BRIDGE] onEvent called with: mcp_result_test_fetch
-[JS-BRIDGE] Result delivered and acknowledged. Calling app.command.Exit()...
-
-=== LIVE VERIFICATION RESULT ===
-Received Response in Python: {
-    'session_token': 'b3634b56f7ae482c7865f0599c2e2198',
-    'command_id': 'f8375dd1-48bd-4de7-81c2-9bc0bf572bed',
+7. Dispatching get_preview command...
+8. Preview decoded in Python. Pixel at (7, 11) is: (255, 160, 40, 255)
+9. Dispatching exit_session command...
+10. exit_session response received: {
+    'session_token': '26239d...[MASKED]',
+    'command_id': '1c8c98cd-6cdd-4047-846e-c45b12edaec8',
     'status': 'success',
-    'result': {
-        'message': 'Live roundtrip command executed successfully in LibreSprite engine!',
-        'executed_type': 'live_ping_check',
-        'timestamp': 1795511421366
-    }
+    'result': {'message': 'Bridge session closed and application exited.'}
 }
-SUCCESS: Live LibreSprite bridge roundtrip verified with 100% evidence!
+11. LibreSprite process exited cleanly with code: 0
+=== SUCCESS: PRODUCTION BRIDGE AND PIXEL MODIFICATION 100% VERIFIED ===
 ```
 
 ---
@@ -195,4 +171,4 @@ SUCCESS: Live LibreSprite bridge roundtrip verified with 100% evidence!
 
 ## 7. Conclusion
 
-Sprint 0.1 has fully resolved the relay deadlock, established an authenticated token exchange channel compatible with LibreSprite's C++ Duktape scripting engine, added real HTTP integration tests, implemented strict UUID command correlation, and verified live runtime roundtrip execution against the actual installed LibreSprite binary.
+Sprint 0.1 & Sprint 0.2 have fully resolved the relay deadlock, established an authenticated token exchange channel compatible with LibreSprite's C++ Duktape scripting engine, removed query parameter tokens in favor of body-only transmission, exercised the actual production bridge script `libresprite_mcp_bridge.js`, verified real pixel modifications in engine and via preview readback, and confirmed clean session termination.

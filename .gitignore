@@ -20,5 +20,15 @@ env/
 .DS_Store
 Thumbs.db
 
-# Temporary test outputs (keep examples in assets/ or test_output committed if desired)
-test_output/*.tmp
+# Test outputs & caches
+.pytest_cache/
+.coverage
+htmlcov/
+test_fixtures_workspace/
+*.tmp
+*test_output_tmp*
+
+# Session tokens & temporary bridge test flags
+*.session_token
+mcp_session_token.json
+*.test_mode

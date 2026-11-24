@@ -426,7 +426,7 @@ def live_execute_safe_command(
     Permitted commands: create_canvas, get_preview, save_sprite, put_pixel, draw_rect, clear_canvas.
     """
     ensure_relay_running()
-    safe_commands = {"create_canvas", "get_preview", "save_sprite", "put_pixel", "draw_rect", "clear_canvas"}
+    safe_commands = {"create_canvas", "get_preview", "save_sprite", "put_pixel", "draw_rect", "clear_canvas", "exit_session"}
     if command_name not in safe_commands:
         return {
             "status": "error",
