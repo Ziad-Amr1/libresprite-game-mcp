@@ -1,66 +1,103 @@
 # LibreSprite Game MCP: Bridge Security Model & Architecture
 
 **Document:** `docs/security/BRIDGE_SECURITY.md`  
-**Version:** 2.0 (Hardened)  
+**Version:** 2.1 (Hardened Authentication, Concurrency Safety & Command Correlation)  
 **Threat Model & Implementation Standards**  
 
 ---
 
 ## 1. Threat Model & Attack Vectors
 
-The LibreSprite Live GUI bridge operates via a local HTTP relay daemon listening on `127.0.0.1:64823` to communicate with the JavaScript scripting engine inside LibreSprite.
+The LibreSprite Live GUI bridge operates via a local HTTP relay daemon listening strictly on loopback (`127.0.0.1:64823`) to communicate with the JavaScript scripting engine inside LibreSprite.
 
 ### Threat Vectors Analyzed:
 1. **Cross-Origin Browser Hijacking (CSRF / DNS Rebinding)**:
-   - *Risk*: A malicious website opened in any web browser could issue background `fetch("http://127.0.0.1:64823/execute", ...)` requests.
-   - *Exploit*: With wildcard CORS (`Access-Control-Allow-Origin: *`), the browser would allow arbitrary command transmission.
-2. **Prototype Pollution / Object Property Exploitation**:
+   - *Risk*: A malicious website opened in a developer's browser could issue background requests to `http://127.0.0.1:64823`.
+   - *Exploit*: With wildcard CORS (`Access-Control-Allow-Origin: *`), the browser permits cross-origin reading and command execution.
+2. **Session Hijacking & Unauthorized Local Access**:
+   - *Risk*: Other untrusted processes running on the local host attempting to inject commands into the LibreSprite workspace.
+3. **Prototype Pollution / Object Property Exploitation**:
    - *Risk*: JavaScript objects check properties up the prototype chain.
-   - *Exploit*: Sending `cmdType: "constructor"`, `"toString"`, or `"__proto__"` passes `cmdType in ALLOWED_COMMANDS` and executes native object prototypes.
-3. **Denial of Service via Unbounded Dimensions**:
+   - *Exploit*: Sending `cmdType: "constructor"`, `"toString"`, or `"__proto__"` passes standard `cmdType in ALLOWED_COMMANDS` checks and executes native object prototypes.
+4. **Race Conditions, Command Overwriting & Stale Response Captures**:
+   - *Risk*: Concurrent tool invocations overwriting pending commands, or delayed responses from timed-out commands being mistakenly consumed by a subsequent command.
+5. **Deadlocks in Multithreaded Relay**:
+   - *Risk*: Nested lock acquisition within the relay daemon freezing the MCP server and hanging tool requests.
+6. **Denial of Service via Unbounded Dimensions**:
    - *Risk*: Passing coordinates or dimensions like `w: 10000000` causes huge pixel iteration loops, hanging the LibreSprite UI.
-4. **Arbitrary Filesystem Write**:
+7. **Arbitrary Filesystem Write**:
    - *Risk*: Unvalidated `save_sprite` with `path: "C:\\Windows\\System32\\..."` allows saving over critical system files.
-5. **Memory Exhaustion via Oversized Payloads**:
+8. **Memory Exhaustion via Oversized Payloads**:
    - *Risk*: Sending gigabyte-sized payloads to `/poll` or `/result` exhausts daemon heap space.
 
 ---
 
 ## 2. Hardened Mitigations & Protocol Specification
 
-### A. Per-Session Local Trust Token
-* On server initialization, `http_relay.py` generates a cryptographically secure 128-bit hex token:
+### A. Per-Session Local Trust Token Lifecycle
+* **Cryptographic Generation**:
+  On daemon initialization, `http_relay.py` generates a cryptographically secure 128-bit hex token:
   ```python
-  SESSION_TOKEN = secrets.token_hex(16)
+  session_token = secrets.token_hex(16)
   ```
-* The token is written to a user-private configuration file (`mcp_session_token.json`) inside LibreSprite's secure roaming directory (`%APPDATA%\LibreSprite\`).
-* Every request to `/poll` or `/result` must provide this token via the `X-MCP-Token` header or `?token=` query parameter.
-* Unauthenticated requests are rejected immediately with HTTP `401 Unauthorized`.
+* **Dual Storage Channels**:
+  The token is written to two locations inside the user's private application roaming directory (`%APPDATA%\LibreSprite\`):
+  1. `%APPDATA%\LibreSprite\libresprite_mcp_bridge.js.session_token`:
+     Directly ingested by LibreSprite's Duktape native `storage.load("session_token")`.
+  2. `%APPDATA%\LibreSprite\mcp_session_token.json`:
+     Structured JSON document containing `{ "session_token": "...", "port": 64823 }` for external tools.
+* **Multi-Channel Authentication**:
+  LibreSprite's C++ `storage.fetch` supports only a single header key/value pair (reserved for `Content-Type: application/json`). The relay accepts the session token via:
+  1. `X-MCP-Token` HTTP Header (for standard HTTP clients/tests)
+  2. `?token=<token>` URL query parameter (for LibreSprite `storage.fetch`)
+  3. `{"session_token": "<token>"}` in JSON request body (for LibreSprite `storage.fetch`)
+* **Constant-Time Verification**:
+  Tokens are verified using `secrets.compare_digest` to prevent timing side-channel attacks.
+* **Token Rotation**:
+  Calling `state.rotate_session_token()` updates disk credentials and immediately invalidates any connection presenting the old token.
 
-### B. CORS Elimination
-* Cross-Origin headers are restricted. Because LibreSprite's C++ `storage.fetch()` engine is a native client and not a browser webview, wildcard `Access-Control-Allow-Origin: *` is completely removed.
+### B. Concurrency Architecture & Deadlock Prevention
+* **Locking Strategy**:
+  State synchronization uses a non-reentrant `threading.Lock()` rather than `RLock`.
+* **Explicit Locked Boundary Helpers**:
+  Methods requiring the lock are explicitly named `_method_locked` (e.g. `_is_alive_locked`). Public methods acquire `self.lock` and delegate to locked helpers, eliminating recursive self-deadlocks.
+* **Out-of-Lock Network Wait**:
+  In `queue_command()`, `self.lock` is released before calling `self.command_event.wait(timeout=timeout)`. This allows incoming HTTP request handler threads to acquire `self.lock` and deliver results without contention.
 
-### C. Request Payload Limit
-* HTTP request bodies are limited to a strict maximum of **5 MB** (`5 * 1024 * 1024` bytes).
-* Any request specifying `Content-Length > 5MB` receives HTTP `413 Payload Too Large`.
+### C. Command Lifecycle Reliability & Correlation
+* **UUID Correlation (`command_id`)**:
+  Every queued command is assigned a unique UUID `command_id = str(uuid.uuid4())`. Responses must echo this exact UUID.
+* **Concurrency Guard (No Overwrites)**:
+  If a command is already in-flight (`self.active_command_id is not None`), subsequent commands are rejected with:
+  `"A command is already pending execution in LibreSprite. Concurrent execution is rejected."`
+* **Stale Response Discarding**:
+  If a command times out, `self.active_command_id` is reset to `None`. Late-arriving responses are safely rejected with `{"status": "ignored", "reason": "stale_or_invalid_command_id"}` and cannot corrupt future commands.
+* **Duplicate Result Handling**:
+  Once a matching result unblocks `queue_command()`, `self.active_command_id` is cleared. Any duplicate delivery of the same result is ignored.
 
-### D. Safe Own-Property Command Dispatch
-* Commands inside `libresprite_mcp_bridge.js` are validated using strict prototype-safe checks:
-  ```javascript
-  if (!Object.prototype.hasOwnProperty.call(ALLOWED_COMMANDS, cmdType)) {
-      throw new Error("Command not in allowlist");
-  }
-  ```
+### D. Network & Payload Security
+* **Strict Loopback Binding**:
+  The HTTP relay binds strictly to `127.0.0.1`. It never binds to `0.0.0.0`.
+* **CORS Elimination**:
+  Cross-origin headers (`Access-Control-Allow-Origin`) are completely removed, neutralizing web browser CSRF and DNS rebinding attacks.
+* **Nosniff Header**:
+  Every response emits `X-Content-Type-Options: nosniff`.
+* **Payload Size Limits**:
+  `Content-Length` is validated before reading bodies. Payloads exceeding **5 MB** (`MAX_PAYLOAD_BYTES = 5 * 1024 * 1024`) are rejected with `413 Payload Too Large` and connection close.
+* **Malformed JSON Validation**:
+  Malformed or non-object payloads return `400 Bad Request`.
 
-### E. Parameter Typing & Boundary Constraints
-* **`create_canvas`**:
-  * Width: $1 \le \text{width} \le 2048$
-  * Height: $1 \le \text{height} \le 2048$
-  * ColorMode: only `"rgba"` or `"indexed"`
-* **`put_pixel`**:
-  * $x, y \ge 0$ and bounded by active image dimensions
-  * $r, g, b, a \in [0, 255]$
-* **`draw_rect`**:
-  * $w, h \ge 1$ and bounded by active image dimensions
-* **`save_sprite`**:
-  * Path must not contain `..` or unapproved absolute directory structures.
+### E. Safe Own-Property Command Allowlist
+Commands in `libresprite_mcp_bridge.js` are validated using strict own-property checks:
+```javascript
+if (!Object.prototype.hasOwnProperty.call(ALLOWED_COMMANDS, cmdType)) {
+    throw new Error("Command not in allowlist");
+}
+```
+Properties inherited from prototypes (`constructor`, `toString`, `valueOf`, `__proto__`) are rejected.
+
+### F. Parameter Typing & Boundary Constraints
+* **`create_canvas`**: $1 \le \text{width}, \text{height} \le 2048$, `colorMode` in `{"rgba", "indexed"}`.
+* **`put_pixel`**: $0 \le x < \text{width}$, $0 \le y < \text{height}$, $r, g, b, a \in [0, 255]$.
+* **`draw_rect`**: $1 \le w, h \le 2048$, coordinates clamped to image dimensions.
+* **`save_sprite`**: Traversal sequences (`..`) strictly rejected; workspace boundaries enforced.

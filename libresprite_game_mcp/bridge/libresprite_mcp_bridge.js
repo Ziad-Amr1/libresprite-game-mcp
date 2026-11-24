@@ -1,6 +1,6 @@
 // LibreSprite Game MCP Bridge Script
 // Hardened command bridge connecting LibreSprite GUI with AI assistants.
-// Version: 2.0 (Security Hardened)
+// Version: 2.1 (Hardened Authentication & Command Correlation)
 // Copyright (C) 2026 Antigravity / DeepMind
 
 const MCP_ENDPOINT = "http://127.0.0.1:64823";
@@ -122,13 +122,17 @@ var mcpBridge = {
 
     init: function() {
         var self = this;
-        // Check for session token from local storage or prompt
-        this.sessionToken = storage.get("mcp_session_token") || "";
+        // Auto-load session token from LibreSprite native storage
+        if (typeof storage !== "undefined" && typeof storage.load === "function") {
+            if (storage.load("session_token")) {
+                this.sessionToken = storage.get("session_token") || "";
+            }
+        }
 
         this.dialog = app.createDialog("mcpBridgeDialog");
         this.dialog.title = "LibreSprite Game MCP Bridge (Hardened)";
         this.dialog.addLabel("Status: Ready to connect");
-        this.dialog.addLabel("Token: " + (this.sessionToken ? "Configured" : "Auto-detect"));
+        this.dialog.addLabel("Token: " + (this.sessionToken ? "Loaded (" + this.sessionToken.substring(0, 6) + "...)" : "Not found"));
         this.dialog.addButton("Connect", function() {
             self.start();
         });
@@ -164,41 +168,54 @@ var mcpBridge = {
         if (!this.connected) return;
         var self = this;
         var info = this.getSpriteInfo();
-        var body = JSON.stringify({ client_info: info });
+        var body = JSON.stringify({
+            session_token: self.sessionToken,
+            client_info: info
+        });
 
-        // Include authentication token header
-        var headers = ["Content-Type", "application/json"];
+        var url = MCP_ENDPOINT + "/poll";
         if (self.sessionToken) {
-            headers.push("X-MCP-Token", self.sessionToken);
+            url += "?token=" + encodeURIComponent(self.sessionToken);
         }
 
         storage.fetch(
-            MCP_ENDPOINT + "/poll",
+            url,
             self.pollKey,
             "",
             "POST",
             body,
-            headers[0],
-            headers[1]
+            "Content-Type",
+            "application/json"
         );
     },
 
-    sendResult: function(resultData) {
+    sendResult: function(commandId, status, payload) {
         var self = this;
+        var resultData = {
+            session_token: self.sessionToken,
+            command_id: commandId,
+            status: status
+        };
+        if (status === "success") {
+            resultData.result = payload;
+        } else {
+            resultData.error = payload;
+        }
+
         var body = JSON.stringify(resultData);
-        var headers = ["Content-Type", "application/json"];
+        var url = MCP_ENDPOINT + "/result";
         if (self.sessionToken) {
-            headers.push("X-MCP-Token", self.sessionToken);
+            url += "?token=" + encodeURIComponent(self.sessionToken);
         }
 
         storage.fetch(
-            MCP_ENDPOINT + "/result",
+            url,
             self.resultKey,
             "",
             "POST",
             body,
-            headers[0],
-            headers[1]
+            "Content-Type",
+            "application/json"
         );
     },
 
@@ -206,15 +223,17 @@ var mcpBridge = {
         var self = this;
         if (!cmd) return;
 
+        var commandId = cmd.command_id || null;
         var cmdType = cmd.type;
         var params = cmd.params || {};
 
         // Security: Strict own-property lookup preventing prototype pollution
         if (!Object.prototype.hasOwnProperty.call(ALLOWED_COMMANDS, cmdType)) {
-            self.sendResult({
-                status: "error",
-                error: "Unauthorized command: '" + cmdType + "'. Command not in security allowlist."
-            });
+            self.sendResult(
+                commandId,
+                "error",
+                "Unauthorized command: '" + cmdType + "'. Command not in security allowlist."
+            );
             return;
         }
 
@@ -223,9 +242,9 @@ var mcpBridge = {
             app.transaction(function() {
                 res = ALLOWED_COMMANDS[cmdType](params);
             });
-            self.sendResult({ status: "success", result: res });
+            self.sendResult(commandId, "success", res);
         } catch (ex) {
-            self.sendResult({ status: "error", error: ex.toString() });
+            self.sendResult(commandId, "error", ex.toString());
         }
     }
 };
