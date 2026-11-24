@@ -8,10 +8,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from libresprite_game_mcp.learning.models import (
+    EvidenceStatus,
     FeedbackRecord,
     FeedbackType,
     KnowledgeCategory,
     KnowledgeRecord,
+    KnowledgeType,
     OutcomeType,
 )
 from libresprite_game_mcp.learning.repository import LearningRepository
@@ -56,11 +58,17 @@ class KnowledgeManager:
     ) -> KnowledgeRecord:
         """
         Adjusts rule confidence based on empirical outcomes and human feedback.
+        Protected: EXTERNAL_REFERENCE records are immutable and cannot be altered by feedback.
         """
         rule = self.repository.get_knowledge(knowledge_id)
         if not rule:
             raise ValueError(f"Knowledge rule '{knowledge_id}' not found.")
 
+        # External reference protection: literature citations must not be modified by empirical feedback
+        if rule.knowledge_type == KnowledgeType.EXTERNAL_REFERENCE:
+            return rule
+
+        base_score = rule.confidence_score if rule.confidence_score is not None else 0.5
         delta = 0.0
         # 1. Outcome delta
         if outcome == OutcomeType.SUCCESS:
@@ -88,7 +96,7 @@ class KnowledgeManager:
                 elif feedback.user_rating <= 2.0:
                     delta -= 0.10
 
-        new_score = round(max(0.0, min(1.0, rule.confidence_score + delta)), 3)
+        new_score = round(max(0.0, min(1.0, base_score + delta)), 3)
         rule.confidence_score = new_score
         rule.updated_at = datetime.now(timezone.utc)
 
@@ -157,16 +165,22 @@ class KnowledgeRetriever:
         task_category: Optional[str] = None,
         category: Optional[KnowledgeCategory] = None,
         resolution: Optional[Tuple[int, int]] = None,
-        min_confidence: float = 0.3,
+        palette_name: Optional[str] = None,
+        art_profile: Optional[str] = None,
+        archetype: Optional[str] = None,
+        animation_state: Optional[str] = None,
+        knowledge_type: Optional[KnowledgeType] = None,
+        min_confidence: float = 0.0,
     ) -> List[KnowledgeRecord]:
         """
-        Retrieves matching knowledge rules.
+        Retrieves matching knowledge rules with conditional applicability filtering.
         Enforces project isolation: retrieves universal rules plus matching project_id rules.
-        Filters rules by context conditions.
+        Filters rules strictly by context conditions (resolution, palette, archetype, animation state).
         """
         all_candidates = self.repository.query_knowledge(
             project_id=project_id,
             category=category,
+            knowledge_type=knowledge_type,
             min_confidence=min_confidence,
             limit=100,
         )
@@ -175,46 +189,99 @@ class KnowledgeRetriever:
         for rule in all_candidates:
             conds = rule.conditions
 
-            # Category filter
+            # 1. Category filter
             if "task_category" in conds and task_category:
                 if conds["task_category"].lower() != task_category.lower():
                     continue
 
-            # Resolution filter
+            # 2. Resolution filter
             if "resolution" in conds and resolution:
                 expected_res = conds["resolution"]
-                actual_res = f"{resolution[0]}x{resolution[1]}"
-                if expected_res != actual_res and expected_res != list(resolution):
+                actual_res_str = f"{resolution[0]}x{resolution[1]}"
+                if isinstance(expected_res, list):
+                    if actual_res_str not in expected_res and list(resolution) != expected_res:
+                        continue
+                elif expected_res != actual_res_str and expected_res != list(resolution):
+                    continue
+
+            # 3. Palette condition filter: rule only applies if requested palette matches
+            if "palette_name" in conds and palette_name:
+                rule_pal = conds["palette_name"]
+                if isinstance(rule_pal, list):
+                    if palette_name.lower() not in [p.lower() for p in rule_pal]:
+                        continue
+                elif str(rule_pal).lower() != palette_name.lower():
+                    continue
+
+            # 4. Archetype condition filter
+            if "archetype" in conds and archetype:
+                rule_arch = conds["archetype"]
+                if isinstance(rule_arch, list):
+                    if archetype.lower() not in [a.lower() for a in rule_arch]:
+                        continue
+                elif str(rule_arch).lower() != archetype.lower():
+                    continue
+
+            # 5. Animation state filter
+            if "animation_state" in conds and animation_state:
+                rule_state = conds["animation_state"]
+                if isinstance(rule_state, list):
+                    if animation_state.lower() not in [s.lower() for s in rule_state]:
+                        continue
+                elif str(rule_state).lower() != animation_state.lower():
                     continue
 
             matched.append(rule)
 
-        # Sort: Highest confidence first; if tied, project-specific rules take precedence over universal
-        matched.sort(
-            key=lambda r: (r.confidence_score, 1 if r.project_id is not None else 0),
-            reverse=True,
-        )
+        # Sort: Project-specific rules take precedence over universal; then by score (or 0.95 for reference)
+        def _sort_key(r: KnowledgeRecord) -> Tuple[int, float]:
+            is_proj = 1 if r.project_id is not None else 0
+            score = r.confidence_score if r.confidence_score is not None else 0.95
+            return (is_proj, score)
+
+        matched.sort(key=_sort_key, reverse=True)
         return matched
 
     def format_guidance(self, rules: List[KnowledgeRecord]) -> Dict[str, Any]:
-        """Consolidates retrieved rules into structured guidance for generators/prompts."""
+        """Consolidates retrieved rules into structured guidance for generators and specialist agents."""
         guidance: Dict[str, Any] = {
             "palettes": [],
             "outlines": [],
+            "silhouette_recommendations": {},
+            "shading_recommendations": {},
+            "outline_recommendations": {},
+            "animation_requirements": {},
             "constraints": [],
             "recommendations": {},
+            "applicable_rules": [],
+            "evidence_statuses": {},
         }
 
         for rule in rules:
             recs = rule.recommendations
-            if "recommended_palette" in recs:
+            guidance["applicable_rules"].append(rule.rule_name)
+            guidance["evidence_statuses"][rule.rule_name] = rule.evidence_status.value
+
+            if "recommended_palette" in recs and recs["recommended_palette"] not in guidance["palettes"]:
                 guidance["palettes"].append(recs["recommended_palette"])
-            if "outline_mode" in recs:
+            if "outline_mode" in recs and recs["outline_mode"] not in guidance["outlines"]:
                 guidance["outlines"].append(recs["outline_mode"])
+
+            # Category-specific guidance mapping
+            if rule.category == KnowledgeCategory.SILHOUETTE:
+                guidance["silhouette_recommendations"].update(recs)
+            elif rule.category == KnowledgeCategory.LIGHTING:
+                guidance["shading_recommendations"].update(recs)
+            elif rule.category == KnowledgeCategory.OUTLINE:
+                guidance["outline_recommendations"].update(recs)
+            elif rule.category == KnowledgeCategory.ANIMATION_TIMING:
+                guidance["animation_requirements"].update(recs)
 
             guidance["constraints"].append({
                 "rule": rule.rule_name,
                 "confidence": rule.confidence_score,
+                "evidence_status": rule.evidence_status.value,
+                "knowledge_type": rule.knowledge_type.value,
                 "category": rule.category.value,
                 "details": recs,
             })

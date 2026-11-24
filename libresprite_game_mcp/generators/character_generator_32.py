@@ -607,17 +607,26 @@ def build_animated_character_project_32(
     blueprint: CharacterBlueprint,
     profile: Optional[ArtProfile] = None,
     palette_name: Optional[str] = None,
+    guidance: Optional[Dict[str, Any]] = None,
 ) -> AsepriteProject:
     """
     Builds a native 32x32 Aseprite project containing distinct 'idle' and 'move' animations.
+    Incorporate typed Learning Layer guidance for archetype, palette, and animation requirements.
     """
     width, height = blueprint.size
-    effective_palette = palette_name or (profile.palette_name if profile else "db16")
-    archetype = getattr(blueprint, "archetype", None) or "knight"
+    effective_palette = palette_name or (profile.palette_name if profile else None)
+    if not effective_palette and guidance and guidance.get("palette_constraints"):
+        effective_palette = guidance["palette_constraints"][0]
+    effective_palette = effective_palette or "db16"
+
+    archetype = getattr(blueprint, "archetype", None)
+    if not archetype and guidance and guidance.get("character_archetype"):
+        archetype = guidance["character_archetype"]
+    archetype = archetype or "knight"
 
     # Default distinct animation specs for 32x32
     if blueprint.animations and ("idle" in blueprint.animations or "move" in blueprint.animations):
-        anim_specs = blueprint.animations
+        anim_specs = dict(blueprint.animations)
     else:
         # Archetype-specific timing and frame counts
         if "knight" in archetype:
@@ -641,7 +650,20 @@ def build_animated_character_project_32(
                 "move": CharacterAnimationSpec(frames=6, duration_ms=130, loop=True),
             }
 
+    # Apply animation requirements from guidance if present
+    if guidance and "animation_requirements" in guidance:
+        anim_req = guidance["animation_requirements"]
+        min_f = anim_req.get("min_frames", 6)
+        if "move" in anim_specs and anim_specs["move"].frames < min_f:
+            anim_specs["move"] = CharacterAnimationSpec(
+                frames=min_f,
+                duration_ms=anim_specs["move"].duration_ms,
+                loop=anim_specs["move"].loop,
+            )
+
     project = AsepriteProject(width, height)
+    if hasattr(project, "metadata"):
+        project.metadata["guidance_applied"] = guidance.get("applicable_rules", []) if guidance else []
     project.set_layer_name(project.sprite.layers[0].name, "Shadow")
     project.add_layer("Body")
     project.add_layer("Clothes")

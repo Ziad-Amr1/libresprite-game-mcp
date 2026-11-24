@@ -232,10 +232,9 @@ class WorkflowEngine:
         """Binds initial parameters and previous step outputs into step inputs."""
         resolved: Dict[str, Any] = dict(step.parameters)
 
-        # 1. Forward relevant initial user parameters
+        # 1. Forward relevant initial user parameters (user parameters override step defaults)
         for k, v in initial_params.items():
-            if k not in resolved:
-                resolved[k] = v
+            resolved[k] = v
 
         # 2. Resolve source_step artifact binding
         source_step_id = step.parameters.get("source_step")

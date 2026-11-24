@@ -229,8 +229,10 @@ class LearningRepository:
                 INSERT INTO knowledge (
                     id, project_id, category, rule_name, description,
                     conditions, recommendations, confidence_score,
-                    source_experience_ids, applied_feedback_ids, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_experience_ids, applied_feedback_ids,
+                    knowledge_type, evidence_status, provenance,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     project_id=excluded.project_id,
                     category=excluded.category,
@@ -241,6 +243,9 @@ class LearningRepository:
                     confidence_score=excluded.confidence_score,
                     source_experience_ids=excluded.source_experience_ids,
                     applied_feedback_ids=excluded.applied_feedback_ids,
+                    knowledge_type=excluded.knowledge_type,
+                    evidence_status=excluded.evidence_status,
+                    provenance=excluded.provenance,
                     updated_at=excluded.updated_at
                 """,
                 (
@@ -254,6 +259,9 @@ class LearningRepository:
                     record.confidence_score,
                     json.dumps(record.source_experience_ids),
                     json.dumps(record.applied_feedback_ids),
+                    record.knowledge_type.value if hasattr(record.knowledge_type, "value") else str(record.knowledge_type),
+                    record.evidence_status.value if hasattr(record.evidence_status, "value") else str(record.evidence_status),
+                    record.provenance.model_dump_json() if record.provenance else None,
                     record.created_at.isoformat(),
                     record.updated_at.isoformat(),
                 ),
@@ -272,6 +280,7 @@ class LearningRepository:
         self,
         project_id: Optional[str] = None,
         category: Optional[str] = None,
+        knowledge_type: Optional[Any] = None,
         min_confidence: float = 0.0,
         limit: int = 50,
     ) -> List[KnowledgeRecord]:
@@ -280,8 +289,12 @@ class LearningRepository:
         If project_id is given: returns rules where (project_id = ? OR project_id IS NULL).
         If project_id is None: returns only universal rules (project_id IS NULL).
         """
-        clauses = ["confidence_score >= ?"]
-        params: List[Any] = [min_confidence]
+        clauses: List[str] = []
+        params: List[Any] = []
+
+        if min_confidence > 0.0:
+            clauses.append("(confidence_score >= ? OR confidence_score IS NULL)")
+            params.append(min_confidence)
 
         if project_id is not None:
             clauses.append("(project_id = ? OR project_id IS NULL)")
@@ -294,7 +307,13 @@ class LearningRepository:
             clauses.append("category = ?")
             params.append(cat_str)
 
-        sql = f"SELECT * FROM knowledge WHERE {' AND '.join(clauses)} ORDER BY confidence_score DESC, updated_at DESC LIMIT ?"
+        if knowledge_type is not None:
+            kt_str = knowledge_type.value if hasattr(knowledge_type, "value") else str(knowledge_type)
+            clauses.append("knowledge_type = ?")
+            params.append(kt_str)
+
+        where_str = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        sql = f"SELECT * FROM knowledge {where_str} ORDER BY (CASE WHEN confidence_score IS NOT NULL THEN confidence_score ELSE 1.0 END) DESC, updated_at DESC LIMIT ?"
         params.append(limit)
 
         conn = self.db.get_connection()
@@ -316,15 +335,47 @@ class LearningRepository:
             except Exception:
                 applied_feedbacks = []
 
+        from libresprite_game_mcp.learning.models import (
+            EvidenceStatus,
+            KnowledgeType,
+            ReferenceProvenance,
+        )
+
+        kt = KnowledgeType.EMPIRICAL_KNOWLEDGE
+        if "knowledge_type" in keys and row["knowledge_type"]:
+            try:
+                kt = KnowledgeType(row["knowledge_type"])
+            except Exception:
+                kt = KnowledgeType.EMPIRICAL_KNOWLEDGE
+
+        ev = EvidenceStatus.EMPIRICAL_OBSERVATION
+        if "evidence_status" in keys and row["evidence_status"]:
+            try:
+                ev = EvidenceStatus(row["evidence_status"])
+            except Exception:
+                ev = EvidenceStatus.EMPIRICAL_OBSERVATION
+
+        prov = None
+        if "provenance" in keys and row["provenance"]:
+            try:
+                prov = ReferenceProvenance.model_validate_json(row["provenance"])
+            except Exception:
+                prov = None
+
+        conf = float(row["confidence_score"]) if row["confidence_score"] is not None else None
+
         return KnowledgeRecord(
             id=row["id"],
             project_id=row["project_id"],
+            knowledge_type=kt,
+            evidence_status=ev,
             category=KnowledgeCategory(row["category"]),
             rule_name=row["rule_name"],
             description=row["description"],
             conditions=json.loads(row["conditions"]),
             recommendations=json.loads(row["recommendations"]),
-            confidence_score=float(row["confidence_score"]),
+            confidence_score=conf,
+            provenance=prov,
             source_experience_ids=json.loads(row["source_experience_ids"]),
             applied_feedback_ids=applied_feedbacks,
             created_at=datetime.fromisoformat(row["created_at"]),

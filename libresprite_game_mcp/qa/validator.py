@@ -34,6 +34,8 @@ class AssetValidator:
     ):
         if isinstance(palette, list):
             self.palette = GamePalette.from_hex_list("custom", palette)
+        elif isinstance(palette, str):
+            self.palette = GamePalette.from_name(palette)
         else:
             self.palette = palette
 

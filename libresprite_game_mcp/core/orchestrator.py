@@ -25,11 +25,13 @@ from libresprite_game_mcp.learning.collector import ExperienceCollector, Feedbac
 from libresprite_game_mcp.learning.evaluator import OutcomeEvaluator
 from libresprite_game_mcp.learning.knowledge import KnowledgeManager, KnowledgeRetriever
 from libresprite_game_mcp.learning.models import (
+    CharacterGenerationGuidance,
     ExperienceRecord,
     FeedbackRecord,
     FeedbackType,
     KnowledgeCategory,
     KnowledgeRecord,
+    KnowledgeType,
     OutcomeType,
 )
 from libresprite_game_mcp.learning.normalizer import ExperienceNormalizer
@@ -84,6 +86,12 @@ class ProductionOrchestrator:
 
         self.engine = WorkflowEngine(dispatcher=self.dispatcher, mode=self.mode)
         self._seed_reference_skills()
+        self._seed_reference_knowledge()
+
+    def _seed_reference_knowledge(self) -> None:
+        """Seeds universal Art Bible knowledge rules into the Learning Layer."""
+        from libresprite_game_mcp.learning.seed_knowledge import seed_art_bible_knowledge
+        seed_art_bible_knowledge(self.learning_repo)
 
     def _seed_reference_skills(self) -> None:
         """
@@ -235,16 +243,111 @@ class ProductionOrchestrator:
         project_id: Optional[str] = None,
         task_category: Optional[str] = None,
         resolution: Optional[Tuple[int, int]] = None,
-        min_confidence: float = 0.3,
+        palette_name: Optional[str] = None,
+        art_profile: Optional[str] = None,
+        archetype: Optional[str] = None,
+        animation_state: Optional[str] = None,
+        min_confidence: float = 0.0,
     ) -> Dict[str, Any]:
         """Retrieves and consolidates applicable knowledge rules into guidance."""
         rules = self.knowledge_retriever.retrieve_applicable_rules(
             project_id=project_id,
             task_category=task_category,
             resolution=resolution,
+            palette_name=palette_name,
+            art_profile=art_profile,
+            archetype=archetype,
+            animation_state=animation_state,
             min_confidence=min_confidence,
         )
         return self.knowledge_retriever.format_guidance(rules)
+
+    def build_character_guidance(
+        self,
+        resolution: Tuple[int, int] = (16, 16),
+        art_profile_name: str = "DefaultGame",
+        archetype: Optional[str] = None,
+        palette_name: Optional[str] = None,
+        project_id: Optional[str] = None,
+    ) -> CharacterGenerationGuidance:
+        """Retrieves applicable knowledge rules and builds a typed CharacterGenerationGuidance package."""
+        raw = self.get_knowledge_guidance(
+            project_id=project_id,
+            task_category="character",
+            resolution=resolution,
+            palette_name=palette_name,
+            art_profile=art_profile_name,
+            archetype=archetype,
+        )
+        return CharacterGenerationGuidance(
+            target_resolution=resolution,
+            selected_art_profile=art_profile_name,
+            character_archetype=archetype,
+            palette_constraints=raw.get("palettes", []),
+            silhouette_recommendations=raw.get("silhouette_recommendations", {}),
+            shading_recommendations=raw.get("shading_recommendations", {}),
+            outline_recommendations=raw.get("outline_recommendations", {}),
+            animation_requirements=raw.get("animation_requirements", {}),
+            applicable_rules=raw.get("applicable_rules", []),
+        )
+
+    def generate_character(
+        self,
+        character_id: str,
+        name: Optional[str] = None,
+        size: Tuple[int, int] = (16, 16),
+        archetype: Optional[str] = None,
+        palette_name: Optional[str] = None,
+        art_profile: str = "DefaultGame",
+        workspace: Optional[Path] = None,
+        project_id: str = "default",
+    ) -> Dict[str, Any]:
+        """
+        Generates an animated character with end-to-end Learning Layer guidance integration.
+        Retrieves applicable rules, binds guidance, dispatches to generator, and records experience.
+        """
+        ws = workspace or self.assets_dir
+        ws.mkdir(parents=True, exist_ok=True)
+        res_tuple = (int(size[0]), int(size[1]))
+
+        guidance = self.build_character_guidance(
+            resolution=res_tuple,
+            art_profile_name=art_profile,
+            archetype=archetype,
+            palette_name=palette_name,
+            project_id=project_id,
+        )
+
+        params = {
+            "character_id": character_id,
+            "name": name or character_id,
+            "size": list(res_tuple),
+            "archetype": archetype,
+            "palette_name": palette_name,
+            "art_profile": art_profile,
+            "guidance": guidance.model_dump(),
+        }
+
+        start_time = time.perf_counter()
+        output = self.dispatcher.dispatch("generate_character", params, ws)
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
+
+        exp = self.experience_collector.record_task_run(
+            task_id=f"gen_{character_id}_{int(time.time() * 1000)}",
+            task_category="character",
+            asset_category="sprite",
+            resolution=res_tuple,
+            input_context=params,
+            output_summary=output,
+            tools_used=["generate_character"],
+            execution_time_ms=duration_ms,
+            execution_outcome="SUCCESS",
+            art_profile={"name": art_profile, "palette": palette_name or "db16"},
+            project_id=project_id,
+        )
+        output["experience_id"] = exp.id
+        output["guidance"] = guidance.model_dump()
+        return output
 
     def find_applicable_skills(
         self,
@@ -283,8 +386,23 @@ class ProductionOrchestrator:
 
         target_ws = workspace or self.assets_dir
         target_ws.mkdir(parents=True, exist_ok=True)
-        params = parameters or {}
+        params = dict(parameters or {})
         task_id = f"skill_run_{skill_id}_{int(time.time() * 1000)}"
+
+        # Automatically bind Learning Layer guidance for character generation workflows
+        task_cat = skill.trigger_conditions.get("task_category", "character")
+        if task_cat == "character" and "guidance" not in params:
+            size_p = params.get("size", (16, 16))
+            res = (int(size_p[0]), int(size_p[1])) if isinstance(size_p, (list, tuple)) and len(size_p) >= 2 else (16, 16)
+            prof_name = params.get("art_profile") or (skill.art_profile_compatibility[0] if skill.art_profile_compatibility else "DefaultGame")
+            guidance_pkg = self.build_character_guidance(
+                resolution=res,
+                art_profile_name=prof_name,
+                archetype=params.get("archetype"),
+                palette_name=params.get("palette_name"),
+                project_id=project_id,
+            )
+            params["guidance"] = guidance_pkg.model_dump()
 
         wf_result: Optional[WorkflowExecutionResult] = None
         unhandled_error: Optional[str] = None
@@ -400,6 +518,14 @@ class ProductionOrchestrator:
         )
 
         for rule in all_rules:
+            # 1. External reference protection: literature references are immutable and not scored by empirical feedback
+            if rule.knowledge_type == KnowledgeType.EXTERNAL_REFERENCE:
+                continue
+
+            # 2. Universal rule protection: project-specific feedback must not mutate universal rules
+            if rule.project_id is None and exp.project_id not in ("default", None):
+                continue
+
             # Rule is relevant IF:
             # 1. Experience is explicitly listed in rule's source_experience_ids, OR
             # 2. Rule's category specifically matches the feedback topic (when topics were identified)

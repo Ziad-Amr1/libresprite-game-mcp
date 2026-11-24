@@ -686,10 +686,12 @@ def build_animated_character_project(
     palette_name: Optional[str] = None,
     blueprint: Optional[CharacterBlueprint] = None,
     profile: Optional[ArtProfile] = None,
+    guidance: Optional[Dict[str, Any]] = None,
 ) -> AsepriteProject:
     """
     Builds an Aseprite project containing animations defined by CharacterBlueprint.
     Falls back gracefully to standard animations if legacy parameters are provided.
+    Incorporate typed Learning Layer guidance for archetype, palette, and animation requirements.
     """
     if (blueprint is not None and (blueprint.size[0] >= 32 or blueprint.size[1] >= 32)) or width >= 32 or height >= 32:
         from libresprite_game_mcp.generators.character_generator_32 import build_animated_character_project_32
@@ -704,14 +706,20 @@ def build_animated_character_project(
             blueprint=blueprint,
             profile=profile,
             palette_name=palette_name,
+            guidance=guidance,
         )
 
-    effective_palette = palette_name or (profile.palette_name if profile else "db16")
+    effective_palette = palette_name or (profile.palette_name if profile else None)
+    if not effective_palette and guidance and guidance.get("palette_constraints"):
+        effective_palette = guidance["palette_constraints"][0]
+    effective_palette = effective_palette or "db16"
 
     if blueprint is not None:
         width, height = blueprint.size
         style = blueprint_to_style(blueprint)
         archetype = resolve_archetype(blueprint)
+        if not getattr(blueprint, "archetype", None) and guidance and guidance.get("character_archetype"):
+            archetype = guidance["character_archetype"]
         animations_dict = blueprint.animations if blueprint.animations else {
             "idle": CharacterAnimationSpec(frames=2, duration_ms=300, loop=True),
             "walk": CharacterAnimationSpec(frames=4, duration_ms=120, loop=True),
@@ -719,6 +727,8 @@ def build_animated_character_project(
     else:
         style = style or CharacterStyle()
         archetype = resolve_archetype(name=None)
+        if guidance and guidance.get("character_archetype"):
+            archetype = guidance["character_archetype"]
         animations_dict = {
             "idle": CharacterAnimationSpec(frames=2, duration_ms=300, loop=True),
             "walk": CharacterAnimationSpec(frames=4, duration_ms=120, loop=True),

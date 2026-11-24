@@ -7,6 +7,7 @@ and strict runtime separation between PRODUCTION, SANDBOX, MOCK, and LIVE_RUNTIM
 from __future__ import annotations
 
 import os
+import json
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
@@ -24,9 +25,6 @@ from libresprite_game_mcp.exporters.game_export import (
 from libresprite_game_mcp.generators.item_generator import (
     generate_potion_icon,
     generate_sword_icon,
-)
-from libresprite_game_mcp.generators.tileset_generator import (
-    build_autotile_3x3_sheet,
 )
 from libresprite_game_mcp.models.schemas import CharacterBlueprint
 from libresprite_game_mcp.qa.validator import AssetValidator
@@ -86,17 +84,34 @@ def _prod_generate_character(params: Dict[str, Any], workspace: Path) -> Dict[st
     size_param = params.get("size", (16, 16))
     size = tuple(size_param) if isinstance(size_param, (list, tuple)) else (16, 16)
     proportion = str(params.get("proportion", "chibi_1_2"))
-    palette_name = str(params.get("palette_name", "db16"))
+    palette_name = params.get("palette_name")
+    archetype = params.get("archetype")
+    guidance = params.get("guidance")
+
+    # If palette_name was not specified by user, use guidance constraints if available
+    if not palette_name and guidance and guidance.get("palette_constraints"):
+        palette_name = guidance["palette_constraints"][0]
+    elif not palette_name:
+        palette_name = "db16"
+
+    # If archetype was not specified by user, use guidance archetype if available
+    if not archetype and guidance and guidance.get("character_archetype"):
+        archetype = guidance["character_archetype"]
 
     bp = CharacterBlueprint(
         character_id=character_id,
         name=name,
         size=size,
         proportion=proportion,
+        archetype=archetype,
     )
 
     from libresprite_game_mcp.generators.character_generator import build_animated_character_project
-    project = build_animated_character_project(blueprint=bp, palette_name=palette_name)
+    project = build_animated_character_project(
+        blueprint=bp,
+        palette_name=palette_name,
+        guidance=guidance,
+    )
     target_path = workspace / f"{character_id}.aseprite"
     project.save(target_path)
 
@@ -106,6 +121,8 @@ def _prod_generate_character(params: Dict[str, Any], workspace: Path) -> Dict[st
     if frames:
         frames[0].save(preview_path)
 
+    applied_rules = guidance.get("applicable_rules", []) if guidance else []
+
     return {
         "project_path": str(target_path),
         "preview_path": str(preview_path),
@@ -113,25 +130,59 @@ def _prod_generate_character(params: Dict[str, Any], workspace: Path) -> Dict[st
         "width": size[0],
         "height": size[1],
         "frames": len(project.sprite.frames),
+        "archetype": bp.archetype,
+        "palette_name": palette_name,
+        "guidance_applied": applied_rules,
     }
 
 
 def _prod_generate_tileset(params: Dict[str, Any], workspace: Path) -> Dict[str, Any]:
+    from libresprite_game_mcp.generators.tileset_generator import generate_tileset_suite
+    from libresprite_game_mcp.exporters.game_export import export_godot_tileset
+
     tileset_id = str(params.get("tileset_id", "tileset"))
     tile_size = int(params.get("tile_size", 16))
     theme_name = str(params.get("theme_name", "grass_dirt"))
+    system = str(params.get("system", "autotile_3x3"))
+    custom_theme = params.get("custom_theme")
+    export_godot = bool(params.get("export_godot", False))
 
-    img, meta = build_autotile_3x3_sheet(tile_size=tile_size, theme_name=theme_name)
+    img, meta = generate_tileset_suite(
+        system=system,
+        tile_size=tile_size,
+        theme_name=theme_name,
+        custom_theme=custom_theme,
+    )
     target_path = workspace / f"{tileset_id}.png"
     img.save(target_path)
 
-    return {
+    # Save metadata JSON
+    meta_path = workspace / f"{tileset_id}.json"
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=2)
+
+    result = {
         "project_path": str(target_path),
+        "metadata_path": str(meta_path),
         "tileset_id": tileset_id,
+        "system": system,
         "width": img.width,
         "height": img.height,
         "tile_size": tile_size,
+        "total_tiles": meta.get("total_tiles", len(meta.get("tiles", []))),
     }
+
+    if export_godot:
+        godot_tres = workspace / f"{tileset_id}.tres"
+        export_godot_tileset(
+            tileset_meta=meta,
+            sheet_texture_res_path=f"res://{target_path.name}",
+            output_tres_path=godot_tres,
+            terrain_name=theme_name,
+        )
+        result["godot_tres"] = str(godot_tres)
+
+    return result
 
 
 def _prod_generate_item(params: Dict[str, Any], workspace: Path) -> Dict[str, Any]:
@@ -142,18 +193,52 @@ def _prod_generate_item(params: Dict[str, Any], workspace: Path) -> Dict[str, An
     if category == "potion":
         potion_type = str(params.get("potion_type", "health"))
         img = generate_potion_icon(size=size, potion_type=potion_type)
+        target_path = workspace / f"{item_id}.png"
+        img.save(target_path)
+    elif category == "lantern":
+        from libresprite_game_mcp.generators.item_generator import build_animated_radiant_lantern
+        proj = build_animated_radiant_lantern(size=size)
+        target_path = workspace / f"{item_id}.aseprite"
+        proj.save(target_path)
+    elif category == "shadow_orb":
+        from libresprite_game_mcp.generators.item_generator import build_animated_shadow_orb
+        proj = build_animated_shadow_orb(size=size)
+        target_path = workspace / f"{item_id}.aseprite"
+        proj.save(target_path)
     else:
         img = generate_sword_icon(size=size)
-
-    target_path = workspace / f"{item_id}.png"
-    img.save(target_path)
+        target_path = workspace / f"{item_id}.png"
+        img.save(target_path)
 
     return {
         "project_path": str(target_path),
         "item_id": item_id,
-        "width": img.width,
-        "height": img.height,
+        "width": size,
+        "height": size,
     }
+
+
+def _prod_generate_title(params: Dict[str, Any], workspace: Path) -> Dict[str, Any]:
+    from libresprite_game_mcp.generators.title_generator import generate_title_assets
+
+    title_id = str(params.get("title_id", "title_logo"))
+    text = str(params.get("text", "TITLE"))
+    subtitle = params.get("subtitle")
+    theme_name = str(params.get("theme", params.get("theme_name", "fantasy_gold")))
+    scale = int(params.get("scale", 2))
+    extrusion_depth = int(params.get("extrusion_depth", 4))
+
+    result = generate_title_assets(
+        title_text=text,
+        subtitle=subtitle,
+        theme_name=theme_name,
+        scale=scale,
+        extrusion_depth=extrusion_depth,
+        output_dir=workspace,
+        file_prefix=title_id,
+    )
+    result["project_path"] = result["aseprite_path"]
+    return result
 
 
 def _prod_apply_outline(params: Dict[str, Any], workspace: Path) -> Dict[str, Any]:
@@ -337,6 +422,12 @@ class ProductionToolDispatcher(BaseToolDispatcher):
                 handler=_prod_generate_item,
                 description="Generates pixel art weapon or item icon",
                 output_keys=["project_path"],
+            ),
+            "generate_title": ToolContract(
+                name="generate_title",
+                handler=_prod_generate_title,
+                description="Generates retro pixel art game title and logo banner",
+                output_keys=["project_path", "png_path"],
             ),
             "apply_outline": ToolContract(
                 name="apply_outline",
