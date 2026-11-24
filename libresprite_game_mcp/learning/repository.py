@@ -35,9 +35,10 @@ class LearningRepository:
                 INSERT INTO experiences (
                     id, project_id, task_id, task_category, asset_category,
                     resolution, art_profile, tools_used, input_context,
-                    output_summary, execution_time_ms, outcome, qa_report,
-                    tags, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    output_summary, execution_time_ms, execution_outcome,
+                    validation_outcome, qa_outcome, human_acceptance,
+                    outcome, qa_report, tags, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     project_id=excluded.project_id,
                     task_id=excluded.task_id,
@@ -49,6 +50,10 @@ class LearningRepository:
                     input_context=excluded.input_context,
                     output_summary=excluded.output_summary,
                     execution_time_ms=excluded.execution_time_ms,
+                    execution_outcome=excluded.execution_outcome,
+                    validation_outcome=excluded.validation_outcome,
+                    qa_outcome=excluded.qa_outcome,
+                    human_acceptance=excluded.human_acceptance,
                     outcome=excluded.outcome,
                     qa_report=excluded.qa_report,
                     tags=excluded.tags,
@@ -66,6 +71,10 @@ class LearningRepository:
                     json.dumps(record.input_context),
                     json.dumps(record.output_summary),
                     record.execution_time_ms,
+                    record.execution_outcome,
+                    record.validation_outcome,
+                    record.qa_outcome,
+                    record.human_acceptance,
                     record.outcome.value if isinstance(record.outcome, OutcomeType) else str(record.outcome),
                     json.dumps(record.qa_report) if record.qa_report else None,
                     json.dumps(record.tags),
@@ -119,6 +128,7 @@ class LearningRepository:
     def _row_to_experience(self, row: Any) -> ExperienceRecord:
         res_parts = str(row["resolution"]).split("x")
         res_tuple = (int(res_parts[0]), int(res_parts[1])) if len(res_parts) == 2 else (16, 16)
+        keys = row.keys()
         return ExperienceRecord(
             id=row["id"],
             project_id=row["project_id"],
@@ -131,6 +141,10 @@ class LearningRepository:
             input_context=json.loads(row["input_context"]),
             output_summary=json.loads(row["output_summary"]),
             execution_time_ms=float(row["execution_time_ms"]),
+            execution_outcome=row["execution_outcome"] if "execution_outcome" in keys and row["execution_outcome"] else "SUCCESS",
+            validation_outcome=row["validation_outcome"] if "validation_outcome" in keys and row["validation_outcome"] else "SKIPPED",
+            qa_outcome=row["qa_outcome"] if "qa_outcome" in keys and row["qa_outcome"] else "SKIPPED",
+            human_acceptance=row["human_acceptance"] if "human_acceptance" in keys else None,
             outcome=OutcomeType(row["outcome"]),
             qa_report=json.loads(row["qa_report"]) if row["qa_report"] else None,
             tags=json.loads(row["tags"]),
@@ -147,8 +161,8 @@ class LearningRepository:
                 """
                 INSERT INTO feedbacks (
                     id, experience_id, project_id, feedback_type, user_rating,
-                    notes, suggested_changes, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    notes, suggested_changes, idempotency_key, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     experience_id=excluded.experience_id,
                     project_id=excluded.project_id,
@@ -156,6 +170,7 @@ class LearningRepository:
                     user_rating=excluded.user_rating,
                     notes=excluded.notes,
                     suggested_changes=excluded.suggested_changes,
+                    idempotency_key=excluded.idempotency_key,
                     created_at=excluded.created_at
                 """,
                 (
@@ -166,6 +181,7 @@ class LearningRepository:
                     record.user_rating,
                     record.notes,
                     json.dumps(record.suggested_changes),
+                    record.idempotency_key,
                     record.created_at.isoformat(),
                 ),
             )
@@ -178,19 +194,29 @@ class LearningRepository:
             "SELECT * FROM feedbacks WHERE experience_id = ? ORDER BY created_at ASC",
             (exp_id,),
         ).fetchall()
-        return [
-            FeedbackRecord(
-                id=r["id"],
-                experience_id=r["experience_id"],
-                project_id=r["project_id"],
-                feedback_type=FeedbackType(r["feedback_type"]),
-                user_rating=float(r["user_rating"]) if r["user_rating"] is not None else None,
-                notes=r["notes"],
-                suggested_changes=json.loads(r["suggested_changes"]),
-                created_at=datetime.fromisoformat(r["created_at"]),
-            )
-            for r in rows
-        ]
+        return [self._row_to_feedback(r) for r in rows]
+
+    def get_feedback_by_idempotency_key(self, key: str) -> Optional[FeedbackRecord]:
+        """Retrieves a feedback record by its unique idempotency key."""
+        conn = self.db.get_connection()
+        row = conn.execute("SELECT * FROM feedbacks WHERE idempotency_key = ?", (key,)).fetchone()
+        if not row:
+            return None
+        return self._row_to_feedback(row)
+
+    def _row_to_feedback(self, r: Any) -> FeedbackRecord:
+        keys = r.keys()
+        return FeedbackRecord(
+            id=r["id"],
+            experience_id=r["experience_id"],
+            project_id=r["project_id"],
+            feedback_type=FeedbackType(r["feedback_type"]),
+            user_rating=float(r["user_rating"]) if r["user_rating"] is not None else None,
+            notes=r["notes"],
+            suggested_changes=json.loads(r["suggested_changes"]),
+            idempotency_key=r["idempotency_key"] if "idempotency_key" in keys else None,
+            created_at=datetime.fromisoformat(r["created_at"]),
+        )
 
     # -------------------------------------------------------------------------
     # Knowledge Operations
@@ -203,8 +229,8 @@ class LearningRepository:
                 INSERT INTO knowledge (
                     id, project_id, category, rule_name, description,
                     conditions, recommendations, confidence_score,
-                    source_experience_ids, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_experience_ids, applied_feedback_ids, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     project_id=excluded.project_id,
                     category=excluded.category,
@@ -214,6 +240,7 @@ class LearningRepository:
                     recommendations=excluded.recommendations,
                     confidence_score=excluded.confidence_score,
                     source_experience_ids=excluded.source_experience_ids,
+                    applied_feedback_ids=excluded.applied_feedback_ids,
                     updated_at=excluded.updated_at
                 """,
                 (
@@ -226,6 +253,7 @@ class LearningRepository:
                     json.dumps(record.recommendations),
                     record.confidence_score,
                     json.dumps(record.source_experience_ids),
+                    json.dumps(record.applied_feedback_ids),
                     record.created_at.isoformat(),
                     record.updated_at.isoformat(),
                 ),
@@ -280,6 +308,14 @@ class LearningRepository:
             return cur.rowcount > 0
 
     def _row_to_knowledge(self, row: Any) -> KnowledgeRecord:
+        keys = row.keys()
+        applied_feedbacks = []
+        if "applied_feedback_ids" in keys and row["applied_feedback_ids"]:
+            try:
+                applied_feedbacks = json.loads(row["applied_feedback_ids"])
+            except Exception:
+                applied_feedbacks = []
+
         return KnowledgeRecord(
             id=row["id"],
             project_id=row["project_id"],
@@ -290,6 +326,7 @@ class LearningRepository:
             recommendations=json.loads(row["recommendations"]),
             confidence_score=float(row["confidence_score"]),
             source_experience_ids=json.loads(row["source_experience_ids"]),
+            applied_feedback_ids=applied_feedbacks,
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
         )

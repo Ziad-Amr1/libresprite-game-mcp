@@ -70,6 +70,11 @@ class KnowledgeManager:
 
         # 2. Feedback delta
         if feedback:
+            # Idempotency check: do not apply the same feedback record twice
+            if feedback.id in rule.applied_feedback_ids:
+                return rule
+            rule.applied_feedback_ids.append(feedback.id)
+
             if feedback.feedback_type == FeedbackType.APPROVAL:
                 delta += 0.10
             elif feedback.feedback_type == FeedbackType.REJECTION:

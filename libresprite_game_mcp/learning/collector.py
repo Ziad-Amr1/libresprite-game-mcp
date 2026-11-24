@@ -40,13 +40,17 @@ class ExperienceCollector:
         output_summary: Optional[Dict[str, Any]] = None,
         tools_used: Optional[List[str]] = None,
         execution_time_ms: float = 0.0,
+        execution_outcome: str = "SUCCESS",
+        validation_outcome: str = "SKIPPED",
+        qa_outcome: str = "SKIPPED",
+        human_acceptance: Optional[str] = None,
         qa_report: Optional[Dict[str, Any]] = None,
         art_profile: Optional[Dict[str, Any]] = None,
         project_id: str = "default",
         execution_error: Optional[str] = None,
         explicit_outcome: Optional[OutcomeType] = None,
     ) -> ExperienceRecord:
-        """Captures a complete execution task run."""
+        """Captures a complete execution task run with separated outcome dimensions."""
         clean_context = self.normalizer.sanitize_payload(input_context or {})
         clean_output = self.normalizer.sanitize_payload(output_summary or {})
         clean_profile = self.normalizer.sanitize_payload(art_profile or {})
@@ -68,6 +72,15 @@ class ExperienceCollector:
                 execution_error=execution_error,
             )
 
+        # Infer outcomes if default
+        resolved_exec_outcome = "FAILED" if (execution_error or outcome == OutcomeType.FAILURE and not qa_report) else execution_outcome
+        resolved_qa_outcome = qa_outcome
+        if qa_report:
+            if not qa_report.get("passed", True):
+                resolved_qa_outcome = "CRITICAL_FAIL" if qa_report.get("critical_errors") else "FAILED"
+            else:
+                resolved_qa_outcome = "WARNINGS" if qa_report.get("warnings") else "PASSED"
+
         record = ExperienceRecord(
             project_id=project_id,
             task_id=task_id,
@@ -79,6 +92,10 @@ class ExperienceCollector:
             input_context=clean_context,
             output_summary=clean_output,
             execution_time_ms=execution_time_ms,
+            execution_outcome=resolved_exec_outcome,
+            validation_outcome=validation_outcome,
+            qa_outcome=resolved_qa_outcome,
+            human_acceptance=human_acceptance,
             outcome=outcome,
             qa_report=qa_report,
             tags=tags,
@@ -101,8 +118,15 @@ class FeedbackCollector:
         notes: Optional[str] = None,
         suggested_changes: Optional[Dict[str, Any]] = None,
         project_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> FeedbackRecord:
-        """Records user feedback for an existing experience."""
+        """Records user feedback for an existing experience with idempotency protection."""
+        # 1. Idempotency check
+        if idempotency_key:
+            existing = self.repository.get_feedback_by_idempotency_key(idempotency_key)
+            if existing:
+                return existing
+
         experience = self.repository.get_experience(experience_id)
         if not experience:
             raise ValueError(f"Experience '{experience_id}' not found.")
@@ -116,6 +140,13 @@ class FeedbackCollector:
             user_rating=user_rating,
             notes=notes,
             suggested_changes=suggested_changes or {},
+            idempotency_key=idempotency_key,
         )
 
-        return self.repository.save_feedback(record)
+        saved = self.repository.save_feedback(record)
+
+        # Update experience human_acceptance status
+        experience.human_acceptance = feedback_type.value.upper()
+        self.repository.save_experience(experience)
+
+        return saved

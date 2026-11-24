@@ -62,6 +62,10 @@ class ExperienceRecord(BaseModel):
     input_context: Dict[str, Any] = Field(default_factory=dict)
     output_summary: Dict[str, Any] = Field(default_factory=dict)
     execution_time_ms: float = 0.0
+    execution_outcome: str = "SUCCESS"  # "SUCCESS", "FAILED"
+    validation_outcome: str = "SKIPPED"  # "PASSED", "FAILED", "SKIPPED"
+    qa_outcome: str = "SKIPPED"  # "PASSED", "CRITICAL_FAIL", "WARNINGS", "SKIPPED"
+    human_acceptance: Optional[str] = None  # "APPROVED", "REJECTED", "CORRECTED", "PENDING"
     outcome: OutcomeType = OutcomeType.SUCCESS
     qa_report: Optional[Dict[str, Any]] = None
     created_at: datetime = Field(default_factory=_utc_now)
@@ -79,6 +83,7 @@ class FeedbackRecord(BaseModel):
     user_rating: Optional[float] = Field(default=None, ge=1.0, le=5.0)
     notes: Optional[str] = None
     suggested_changes: Dict[str, Any] = Field(default_factory=dict)
+    idempotency_key: Optional[str] = None
     created_at: datetime = Field(default_factory=_utc_now)
 
 
@@ -98,5 +103,6 @@ class KnowledgeRecord(BaseModel):
     recommendations: Dict[str, Any] = Field(default_factory=dict)
     confidence_score: float = Field(default=0.5, ge=0.0, le=1.0)
     source_experience_ids: List[str] = Field(default_factory=list)
+    applied_feedback_ids: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=_utc_now)
     updated_at: datetime = Field(default_factory=_utc_now)

@@ -2,8 +2,8 @@
   "skill_id": "pixilart_clean_pixel_art",
   "version": "1.0.0",
   "name": "Pixilart Clean Art & Export Pipeline",
-  "description": "Pixilart drawing skill: generates clean silhouettes avoiding jaggies, applies cluster shading, enforces Art QA without orphan pixels, and safely saves .pixil project files and game sprite sheets.",
-  "status": "APPROVED",
+  "description": "Example Pixilart workflow: clean silhouettes, cluster shading, Art QA, and .pixil project export.",
+  "status": "DRAFT",
   "trigger_conditions": {
     "task_category": "character",
     "style": "pixilart"
@@ -104,6 +104,6 @@
     "PixilartCommunity"
   ],
   "author": "Pixilart_ArtDirector",
-  "created_at": "2026-11-24T10:30:55.389876Z",
-  "updated_at": "2026-11-24T10:30:55.389876Z"
+  "created_at": "2026-11-24T13:01:05.811292Z",
+  "updated_at": "2026-11-24T13:01:05.811292Z"
 }

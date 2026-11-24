@@ -2,8 +2,8 @@
   "skill_id": "pixel_character_consistency",
   "version": "1.0.0",
   "name": "Pixel Character Consistency",
-  "description": "Production workflow generating consistent chibi character sprites with outlines and Godot 4 exports.",
-  "status": "APPROVED",
+  "description": "Example reference workflow for consistent chibi character sprites with outlines and Godot 4 exports.",
+  "status": "DRAFT",
   "trigger_conditions": {
     "task_category": "character",
     "perspective": "top_down"
@@ -91,6 +91,6 @@
     "RetroFantasy"
   ],
   "author": "ArtDirector_Lead",
-  "created_at": "2026-11-24T10:20:05.730453Z",
-  "updated_at": "2026-11-24T10:20:05.730453Z"
+  "created_at": "2026-11-24T13:01:05.797524Z",
+  "updated_at": "2026-11-24T13:01:05.797524Z"
 }

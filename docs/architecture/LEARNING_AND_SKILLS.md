@@ -54,10 +54,15 @@ The operating model is strictly **Hybrid**:
 
 ## 3. Learning Layer Architecture
 
-### 3.1 Data Models
-- **`ExperienceRecord`:** Captures `task_id`, `task_category`, `resolution`, `art_profile`, `tools_used`, `execution_time_ms`, `outcome` (success/failure/partial), and `qa_report`. Sanitizes all sensitive credentials (`session_token`, passwords).
-- **`FeedbackRecord`:** Ingests human ratings (1.0 to 5.0), approval/rejection flags, and correction notes, linked to an `experience_id` with foreign-key cascade.
-- **`KnowledgeRecord`:** Relational rules and Art Bible constraints containing conditions, recommendations, confidence scores (0.0 to 1.0), and source experience provenance.
+### 3.1 Data Models & Outcome Separation
+- **`ExperienceRecord`:** Captures `task_id`, `task_category`, `resolution`, `art_profile`, `tools_used`, `execution_time_ms`, and four independently separated outcome dimensions:
+  - `execution_outcome`: ("SUCCESS", "FAILED") - Did the tool execution complete without crashing?
+  - `validation_outcome`: ("PASSED", "WARNINGS", "FAILED") - Did parameters conform to schema?
+  - `qa_outcome`: ("PASSED", "WARNINGS", "CRITICAL_FAIL") - Did generated art satisfy Art QA criteria?
+  - `human_acceptance`: ("ACCEPTED", "CORRECTED", "REJECTED", "UNREVIEWED") - Human artist verdict.
+  - Sanitizes all sensitive credentials (`session_token`, passwords).
+- **`FeedbackRecord`:** Ingests human ratings (1.0 to 5.0), approval/rejection flags, and correction notes, protected by `idempotency_key` to prevent duplicate confidence inflation.
+- **`KnowledgeRecord`:** Relational rules and Art Bible constraints containing conditions, recommendations, confidence scores (0.0 to 1.0), `applied_feedback_ids`, and source experience provenance.
 
 ### 3.2 Dynamic Confidence Scoring
 Knowledge rule confidence adjusts dynamically based on empirical evidence:
@@ -156,6 +161,7 @@ The test suite provides comprehensive coverage across all components:
 
 | Test File | Description | Test Count | Status |
 |-----------|-------------|------------|--------|
+| `tests/test_sprint_0_8_corrective.py` | Sprint 0.8 corrective regression suite (Objectives A–G) | 13 | PASSED |
 | `tests/test_learning_foundation.py` | Pydantic schemas, SQLite foreign keys, transactions, project isolation, semver | 11 | PASSED |
 | `tests/test_experience_knowledge.py` | Experience normalization, credential masking, outcome scoring, knowledge confidence | 7 | PASSED |
 | `tests/test_skill_registry_builder.py`| Workflow validation, tool allowlist, security injection checks, filesystem export | 6 | PASSED |
@@ -166,4 +172,4 @@ The test suite provides comprehensive coverage across all components:
 | `tests/test_corrective_suite.py` | Godot frame timing, workspace path traversal security | 5 | PASSED |
 | `tests/test_production_system.py` | Art profiles, palettes, generators, and QA validators | 5 | PASSED |
 | `tests/test_libresprite_live_runtime.py`| Production bridge execution inside live LibreSprite engine (`put_pixel`) | 1 | PASSED |
-| **Total** | **Full Regression Suite** | **59** | **ALL PASSED** |
+| **Total** | **Full Regression Suite** | **72** | **ALL PASSED** |

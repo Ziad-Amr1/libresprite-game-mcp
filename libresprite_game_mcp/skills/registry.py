@@ -95,14 +95,17 @@ class SkillRegistry:
         return matches
 
     def export_to_filesystem(self, skill: SkillDefinition) -> Path:
-        """Saves a skill definition as a versioned JSON artifact."""
+        """Saves a skill definition as a versioned JSON artifact atomically."""
         target_dir = self.skills_dir / skill.skill_id / skill.version
         target_dir.mkdir(parents=True, exist_ok=True)
         manifest_file = target_dir / "skill.json"
+        tmp_file = target_dir / "skill.json.tmp"
 
-        with open(manifest_file, "w", encoding="utf-8") as f:
+        with open(tmp_file, "w", encoding="utf-8") as f:
             f.write(skill.model_dump_json(indent=2))
 
+        import os
+        os.replace(tmp_file, manifest_file)
         return manifest_file
 
     def import_from_filesystem(self, manifest_file: Path, force: bool = False) -> SkillDefinition:

@@ -38,3 +38,4 @@ mcp_session_token.json
 *.db-shm
 *.db-wal
 data/learning/*.db*
+data/sandbox_workspaces/

@@ -135,34 +135,64 @@ class SkillBuilder:
         skill_id: str,
         name: str,
         description: str,
+        min_experiences: int = 3,
     ) -> SkillDefinition:
         """
-        Synthesizes a candidate workflow draft from high-performing experiences.
+        Synthesizes a candidate workflow draft from multi-experience consensus.
+        Requires minimum experience volume and consistent tool sequences.
         """
+        if len(experiences) < min_experiences:
+            raise ValueError(
+                f"Insufficient evidence: found {len(experiences)} experiences, minimum required is {min_experiences}."
+            )
+
         successful_exps = [e for e in experiences if e.outcome == OutcomeType.SUCCESS]
-        if not successful_exps:
-            raise ValueError("No successful experiences available to synthesize a skill draft.")
+        if len(successful_exps) < min_experiences:
+            raise ValueError(
+                f"Insufficient successful evidence: found {len(successful_exps)} successful experiences, minimum required is {min_experiences}."
+            )
 
-        # Aggregate tool usage sequence
-        first_exp = successful_exps[0]
+        # Failure rate check (> 25% failure indicates unstable workflow)
+        failure_rate = (len(experiences) - len(successful_exps)) / len(experiences)
+        if failure_rate > 0.25:
+            raise ValueError(
+                f"Workflow instability detected: failure rate {failure_rate:.1%} is too high to synthesize a reliable candidate skill."
+            )
+
+        # Check tool sequence consensus across all successful experiences
+        consensus_tools = tuple(successful_exps[0].tools_used)
+        for exp in successful_exps[1:]:
+            if tuple(exp.tools_used) != consensus_tools:
+                raise ValueError(
+                    f"Conflicting evidence: inconsistent tool sequences detected ({consensus_tools} vs {tuple(exp.tools_used)}). Manual human design required."
+                )
+
         workflow_steps: List[WorkflowStep] = []
-
-        for idx, tool in enumerate(first_exp.tools_used):
+        prev_step_id: Optional[str] = None
+        for idx, tool in enumerate(consensus_tools):
             step_id = f"step_{idx + 1}_{tool}"
+            params: Dict[str, Any] = {}
+            if prev_step_id is not None:
+                params["source_step"] = prev_step_id
+
             workflow_steps.append(
                 WorkflowStep(
                     step_id=step_id,
                     tool_name=tool,
-                    description=f"Automated step {idx + 1} invoking {tool}",
-                    parameters={},
+                    description=f"Synthesized step {idx + 1} invoking {tool}",
+                    parameters=params,
                 )
             )
+            prev_step_id = step_id
 
-        # Trigger conditions inferred from task category and resolution
+        # Inferred triggers
+        first_exp = successful_exps[0]
         trigger_conditions = {
             "task_category": first_exp.task_category,
             "resolution": f"{first_exp.resolution[0]}x{first_exp.resolution[1]}",
         }
+
+        source_ids = [e.id for e in successful_exps]
 
         return self.create_draft(
             skill_id=skill_id,
@@ -171,6 +201,9 @@ class SkillBuilder:
             workflow=workflow_steps,
             version="0.1.0",
             trigger_conditions=trigger_conditions,
-            validation_rules={"require_qa_pass": True},
-            author="experience_synthesizer",
+            validation_rules={
+                "require_qa_pass": True,
+                "synthesized_from_experiences": source_ids,
+            },
+            author="evidence_synthesizer",
         )

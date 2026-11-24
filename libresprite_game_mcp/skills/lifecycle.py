@@ -59,7 +59,7 @@ class SkillLifecycleManager:
             version=version,
             target_status=SkillStatus.SANDBOX,
             reviewer="system",
-            action=ApprovalAction.APPROVED,
+            action=None,
             comments="Submitted to sandbox for automated benchmark and testing.",
         )
 
@@ -69,11 +69,15 @@ class SkillLifecycleManager:
         version: str,
         reviewer: str,
         comments: str,
+        human_confirmed: bool = True,
     ) -> SkillDefinition:
         """
         Approves a SANDBOX skill for production.
-        STRICT REQUIREMENT: Human approval is mandatory.
+        STRICT REQUIREMENT: Explicit human confirmation and SANDBOX prerequisite state are mandatory.
         """
+        if not human_confirmed:
+            raise AutonomousApprovalError("Approval rejected: explicit human confirmation is required.")
+
         if not reviewer or not reviewer.strip():
             raise AutonomousApprovalError("Reviewer name is required for approval.")
 
@@ -85,8 +89,18 @@ class SkillLifecycleManager:
                 "Human Art Director or Technical Lead approval is strictly mandatory."
             )
 
-        if not comments or len(comments.strip()) < 5:
-            raise ValueError("Approval requires detailed justification comments from the human reviewer.")
+        if not comments or len(comments.strip()) < 10:
+            raise ValueError("Approval requires detailed justification comments (min 10 characters) from the human reviewer.")
+
+        skill = self.repository.get_skill_version(skill_id, version)
+        if not skill:
+            raise ValueError(f"Skill '{skill_id}' version '{version}' does not exist.")
+
+        if skill.status != SkillStatus.SANDBOX:
+            raise InvalidStateTransitionError(
+                f"Cannot approve skill '{skill_id}' from state '{skill.status.value}'. "
+                "Skill must be in SANDBOX state before human approval."
+            )
 
         return self._transition(
             skill_id=skill_id,
@@ -167,7 +181,7 @@ class SkillLifecycleManager:
         version: str,
         target_status: SkillStatus,
         reviewer: str,
-        action: ApprovalAction,
+        action: Optional[ApprovalAction] = None,
         comments: Optional[str] = None,
     ) -> SkillDefinition:
         skill = self.repository.get_skill_version(skill_id, version)
@@ -194,4 +208,5 @@ class SkillLifecycleManager:
             new_status=target_status,
             reviewer=reviewer,
             comments=comments,
+            action=action,
         )

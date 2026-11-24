@@ -27,7 +27,19 @@ def orchestrator(tmp_path):
 
 
 def test_pixilart_skill_discovery(orchestrator):
-    """Ensures the Pixilart clean pixel art skill is discoverable in the registry."""
+    """Ensures the Pixilart clean pixel art skill is seeded in DRAFT and discoverable after approval."""
+    draft_skill = orchestrator.skill_repo.get_skill_version("pixilart_clean_pixel_art", "1.0.0")
+    assert draft_skill is not None
+    assert draft_skill.status.value == "DRAFT"
+
+    # Human review approval
+    approved = orchestrator.approve_reference_skill(
+        skill_id="pixilart_clean_pixel_art",
+        reviewer="ArtDirector_Sarah",
+        comments="Approved Pixilart clean art reference pipeline.",
+    )
+    assert approved.status.value == "APPROVED"
+
     context = {"task_category": "character", "style": "pixilart"}
     matches = orchestrator.find_applicable_skills(context, art_profile_name="PixilartCommunity")
 
@@ -41,8 +53,11 @@ def test_pixilart_skill_discovery(orchestrator):
     assert skill.validation_rules.get("no_orphan_pixels") is True
 
 
-def test_pixilart_skill_execution(orchestrator):
-    """Executes the complete Pixilart 5-step pipeline and checks experience persistence."""
+def test_pixilart_skill_execution(orchestrator, tmp_path):
+    """Executes the complete Pixilart 5-step pipeline and checks real artifact generation and experience persistence."""
+    orchestrator.approve_reference_skill("pixilart_clean_pixel_art")
+    ws = tmp_path / "pixil_workspace"
+
     result = orchestrator.execute_skill(
         skill_id="pixilart_clean_pixel_art",
         parameters={
@@ -53,9 +68,11 @@ def test_pixilart_skill_execution(orchestrator):
             "outline_mode": "colored",
         },
         project_id="PixilartDemo",
+        workspace=ws,
     )
 
     assert result["status"] == "success"
+    assert result["workflow_status"] == "SUCCESS"
     assert result["skill_id"] == "pixilart_clean_pixel_art"
     assert result["outcome"] == "success"
 
@@ -65,6 +82,12 @@ def test_pixilart_skill_execution(orchestrator):
     assert "step_3_art_qa_check" in steps
     assert "step_4_export_pixilart" in steps
     assert "step_5_export_spritesheet" in steps
+
+    # Verify real files exist on disk
+    artifacts = result["generated_artifacts"]
+    assert len(artifacts) >= 3
+    for art in artifacts:
+        assert Path(art).exists(), f"Artifact does not exist: {art}"
 
     # Check database persistence
     exp = orchestrator.learning_repo.get_experience(result["experience_id"])

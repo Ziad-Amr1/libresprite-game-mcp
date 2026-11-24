@@ -35,7 +35,7 @@ class SkillRepository:
         """
         Saves a SkillDefinition.
         Enforces immutability: If this version already exists with status APPROVED,
-        it cannot be overwritten unless force=True.
+        it cannot be overwritten. Any update requires bumping the semver version.
         """
         conn = self.db.get_connection()
         existing = conn.execute(
@@ -43,10 +43,10 @@ class SkillRepository:
             (skill.skill_id, skill.version),
         ).fetchone()
 
-        if existing and existing["status"] == SkillStatus.APPROVED.value and not force:
+        if existing and existing["status"] == SkillStatus.APPROVED.value:
             raise ImmutableSkillError(
                 f"Skill '{skill.skill_id}' version '{skill.version}' is APPROVED and immutable. "
-                "Bump the version to introduce changes."
+                "Bump the semver version to introduce changes."
             )
 
         with self.db.transaction() as t_conn:
@@ -164,8 +164,9 @@ class SkillRepository:
         new_status: SkillStatus,
         reviewer: str = "human",
         comments: Optional[str] = None,
+        action: Optional[ApprovalAction] = None,
     ) -> SkillDefinition:
-        """Transitions skill version status and records an audit approval log."""
+        """Transitions skill version status and records an audit approval log when applicable."""
         skill = self.get_skill_version(skill_id, version)
         if not skill:
             raise ValueError(f"Skill '{skill_id}' version '{version}' not found.")
@@ -184,33 +185,38 @@ class SkillRepository:
                 (new_status.value, now.isoformat(), skill_id, version),
             )
 
-            # Record approval/transition audit
-            action = ApprovalAction.APPROVED if new_status == SkillStatus.APPROVED else (
-                ApprovalAction.DEPRECATED if new_status == SkillStatus.DEPRECATED else ApprovalAction.REJECTED
-            )
-            approval = SkillApprovalRecord(
-                skill_id=skill_id,
-                skill_version=version,
-                action=action,
-                reviewer=reviewer,
-                comments=comments,
-                timestamp=now,
-            )
-            conn.execute(
-                """
-                INSERT INTO skill_approvals (id, skill_id, skill_version, action, reviewer, comments, timestamp)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    approval.id,
-                    approval.skill_id,
-                    approval.skill_version,
-                    approval.action.value,
-                    approval.reviewer,
-                    approval.comments,
-                    approval.timestamp.isoformat(),
-                ),
-            )
+            # Record approval/transition audit only for approval, rejection, or deprecation actions
+            record_action = action
+            if record_action is None:
+                if new_status == SkillStatus.APPROVED:
+                    record_action = ApprovalAction.APPROVED
+                elif new_status in (SkillStatus.DISABLED, SkillStatus.DEPRECATED):
+                    record_action = ApprovalAction.REJECTED
+
+            if record_action is not None:
+                approval = SkillApprovalRecord(
+                    skill_id=skill_id,
+                    skill_version=version,
+                    action=record_action,
+                    reviewer=reviewer,
+                    comments=comments,
+                    timestamp=now,
+                )
+                conn.execute(
+                    """
+                    INSERT INTO skill_approvals (id, skill_id, skill_version, action, reviewer, comments, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        approval.id,
+                        approval.skill_id,
+                        approval.skill_version,
+                        approval.action.value,
+                        approval.reviewer,
+                        approval.comments,
+                        approval.timestamp.isoformat(),
+                    ),
+                )
 
         return skill
 
@@ -333,7 +339,7 @@ class SkillRepository:
         if version:
             clauses.append("skill_version = ?")
             params.append(version)
-        sql = f"SELECT * FROM skill_approvals WHERE {' AND '.join(clauses)} ORDER BY timestamp DESC"
+        sql = f"SELECT * FROM skill_approvals WHERE {' AND '.join(clauses)} ORDER BY timestamp DESC, rowid DESC"
 
         conn = self.db.get_connection()
         rows = conn.execute(sql, params).fetchall()

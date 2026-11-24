@@ -21,7 +21,22 @@ def orchestrator(tmp_path):
 
 
 def test_reference_skill_seeding_and_discovery(orchestrator):
-    """Ensures reference skill 'pixel_character_consistency' is seeded and discoverable."""
+    """Ensures reference skill 'pixel_character_consistency' is seeded in DRAFT and discoverable after approval."""
+    # 1. Initially seeded as DRAFT (honoring governance)
+    draft_skill = orchestrator.skill_repo.get_skill_version("pixel_character_consistency", "1.0.0")
+    assert draft_skill is not None
+    assert draft_skill.status.value == "DRAFT"
+    assert len(draft_skill.workflow) == 4
+
+    # 2. Approved explicitly through human review lifecycle
+    approved_skill = orchestrator.approve_reference_skill(
+        skill_id="pixel_character_consistency",
+        reviewer="ArtDirector_Sarah",
+        comments="Approved reference skill after sandbox verification.",
+    )
+    assert approved_skill.status.value == "APPROVED"
+
+    # 3. Discoverable in production query
     context = {"task_category": "character", "perspective": "top_down"}
     matching = orchestrator.find_applicable_skills(context, art_profile_name="DefaultGame")
 
@@ -30,11 +45,13 @@ def test_reference_skill_seeding_and_discovery(orchestrator):
     assert ref_skill.skill_id == "pixel_character_consistency"
     assert ref_skill.version == "1.0.0"
     assert ref_skill.status.value == "APPROVED"
-    assert len(ref_skill.workflow) == 4
 
 
-def test_reference_skill_execution_and_telemetry(orchestrator):
+def test_reference_skill_execution_and_telemetry(orchestrator, tmp_path):
     """Executes 'pixel_character_consistency', verifies step outputs, and checks experience persistence."""
+    orchestrator.approve_reference_skill("pixel_character_consistency")
+    ws = tmp_path / "art_output"
+
     result = orchestrator.execute_skill(
         skill_id="pixel_character_consistency",
         parameters={
@@ -45,15 +62,23 @@ def test_reference_skill_execution_and_telemetry(orchestrator):
             "outline_mode": "colored",
         },
         project_id="GameProject1",
+        workspace=ws,
     )
 
     assert result["status"] == "success"
+    assert result["workflow_status"] == "SUCCESS"
     assert result["skill_id"] == "pixel_character_consistency"
     assert result["outcome"] == "success"
     assert "step_1_generate" in result["step_outputs"]
     assert "step_2_outline" in result["step_outputs"]
     assert "step_3_validate" in result["step_outputs"]
     assert "step_4_export" in result["step_outputs"]
+
+    # Verify real artifacts were created on disk
+    artifacts = result["generated_artifacts"]
+    assert len(artifacts) >= 3
+    for art in artifacts:
+        assert Path(art).exists(), f"Artifact does not exist on disk: {art}"
 
     # Verify Experience record saved in database
     exp_id = result["experience_id"]
@@ -64,8 +89,11 @@ def test_reference_skill_execution_and_telemetry(orchestrator):
     assert "character" in exp.tags
 
 
-def test_feedback_ingestion_and_confidence_propagation(orchestrator):
+def test_feedback_ingestion_and_confidence_propagation(orchestrator, tmp_path):
     """Records user feedback on a task execution and verifies knowledge confidence update."""
+    orchestrator.approve_reference_skill("pixel_character_consistency")
+    ws = tmp_path / "feedback_test"
+
     # 1. Add knowledge rule
     rule = orchestrator.knowledge_manager.add_rule(
         rule_name="Top-Down Chibi Colored Outline Rule",
@@ -82,6 +110,7 @@ def test_feedback_ingestion_and_confidence_propagation(orchestrator):
         skill_id="pixel_character_consistency",
         parameters={"character_id": "test_hero"},
         project_id="ProjectZ",
+        workspace=ws,
     )
     exp_id = exec_result["experience_id"]
 
