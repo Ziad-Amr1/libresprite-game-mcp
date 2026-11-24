@@ -123,7 +123,7 @@ def _prod_generate_tileset(params: Dict[str, Any], workspace: Path) -> Dict[str,
     tile_size = int(params.get("tile_size", 16))
     theme_name = str(params.get("theme_name", "grass_dirt"))
 
-    img = build_autotile_3x3_sheet(tile_size=tile_size, theme_name=theme_name)
+    img, meta = build_autotile_3x3_sheet(tile_size=tile_size, theme_name=theme_name)
     target_path = workspace / f"{tileset_id}.png"
     img.save(target_path)
 
@@ -142,7 +142,8 @@ def _prod_generate_item(params: Dict[str, Any], workspace: Path) -> Dict[str, An
     size = int(params.get("size", 16))
 
     if category == "potion":
-        img = generate_potion_icon(size=size)
+        potion_type = str(params.get("potion_type", "health"))
+        img = generate_potion_icon(size=size, potion_type=potion_type)
     else:
         img = generate_sword_icon(size=size)
 

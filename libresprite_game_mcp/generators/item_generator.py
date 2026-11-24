@@ -88,8 +88,8 @@ def generate_potion_icon(
     canvas.put_pixel(mid_x + 1 * scale, flask_cy + 2 * scale, liquid_light)
 
     # 5. Glass highlight curve (top-left reflection)
-    canvas.put_pixel(mid_x - 2 * scale, flask_cy - 2 * scale, (255, 255, 255, 220))
-    canvas.put_pixel(mid_x - 3 * scale, flask_cy - 1 * scale, (255, 255, 255, 220))
+    canvas.put_pixel(mid_x - 2 * scale, flask_cy - 2 * scale, (255, 255, 255, 255))
+    canvas.put_pixel(mid_x - 3 * scale, flask_cy - 1 * scale, (255, 255, 255, 255))
 
     canvas.add_outline(outline)
     return canvas.image

@@ -1,0 +1,320 @@
+{
+  "version": "1.0.0",
+  "system": "LibreSprite Game MCP Production Art System",
+  "total_assets": 14,
+  "all_qa_passed": true,
+  "assets": [
+    {
+      "id": "warrior_hero",
+      "category": "character",
+      "name": "Warrior Hero",
+      "dimensions": [
+        16,
+        16
+      ],
+      "frames": 6,
+      "format": "aseprite + png + tres",
+      "files": {
+        "project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\warrior_hero.aseprite",
+        "preview": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\warrior_hero_preview.png",
+        "sheet": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\warrior_hero_sheet.png",
+        "godot_tres": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\warrior_hero_spriteframes.tres"
+      },
+      "description": "Chibi warrior hero with idle and walk animations, packed spritesheet, and Godot 4 SpriteFrames."
+    },
+    {
+      "id": "pixil_knight",
+      "category": "character",
+      "name": "Pixilart Knight",
+      "dimensions": [
+        16,
+        16
+      ],
+      "frames": 6,
+      "format": "aseprite + pixil + png + tres",
+      "files": {
+        "project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\pixil_knight.aseprite",
+        "preview": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\pixil_knight_preview.png",
+        "pixil_json": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\pixil_knight.pixil",
+        "sheet": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\pixil_knight_sheet.png",
+        "godot_tres": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\pixil_knight_spriteframes.tres"
+      },
+      "description": "Authentic clean pixel art knight with .pixil JSON project format, zero orphan pixels, and Godot 4 metadata."
+    },
+    {
+      "id": "goblin_rogue",
+      "category": "character",
+      "name": "Goblin Rogue",
+      "dimensions": [
+        16,
+        16
+      ],
+      "frames": 6,
+      "format": "aseprite + png + tres",
+      "files": {
+        "project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\goblin_rogue.aseprite",
+        "preview": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\goblin_rogue_preview.png",
+        "sheet": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\goblin_rogue_sheet.png",
+        "godot_tres": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\goblin_rogue_spriteframes.tres"
+      },
+      "description": "Green-skinned goblin rogue with leather armor, dagger, clean outline, and 6 animation frames."
+    },
+    {
+      "id": "arcane_mage",
+      "category": "character",
+      "name": "Arcane Mage",
+      "dimensions": [
+        16,
+        16
+      ],
+      "frames": 6,
+      "format": "aseprite + png + tres",
+      "files": {
+        "project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\arcane_mage.aseprite",
+        "preview": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\arcane_mage_preview.png",
+        "sheet": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\arcane_mage_sheet.png",
+        "godot_tres": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\characters\\arcane_mage_spriteframes.tres"
+      },
+      "description": "Arcane mage with purple robes, mystic blue focus weapon, 6 animation frames, and Godot 4 resource."
+    },
+    {
+      "id": "sword_greatsword",
+      "category": "item",
+      "name": "Iron Greatsword",
+      "dimensions": [
+        16,
+        16
+      ],
+      "format": "png",
+      "files": {
+        "icon": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\items\\sword_greatsword.png"
+      },
+      "description": "Diagonal steel greatsword with gold crossguard and ruby pommel."
+    },
+    {
+      "id": "potion_health",
+      "category": "item",
+      "name": "Health Potion",
+      "dimensions": [
+        16,
+        16
+      ],
+      "format": "png",
+      "files": {
+        "icon": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\items\\potion_health.png"
+      },
+      "description": "Rounded glass flask with health liquid and dynamic reflection highlight."
+    },
+    {
+      "id": "potion_mana",
+      "category": "item",
+      "name": "Mana Potion",
+      "dimensions": [
+        16,
+        16
+      ],
+      "format": "png",
+      "files": {
+        "icon": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\items\\potion_mana.png"
+      },
+      "description": "Rounded glass flask with mana liquid and dynamic reflection highlight."
+    },
+    {
+      "id": "potion_stamina",
+      "category": "item",
+      "name": "Stamina Elixir",
+      "dimensions": [
+        16,
+        16
+      ],
+      "format": "png",
+      "files": {
+        "icon": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\items\\potion_stamina.png"
+      },
+      "description": "Rounded glass flask with stamina liquid and dynamic reflection highlight."
+    },
+    {
+      "id": "potion_elixir",
+      "category": "item",
+      "name": "Royal Elixir",
+      "dimensions": [
+        16,
+        16
+      ],
+      "format": "png",
+      "files": {
+        "icon": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\items\\potion_elixir.png"
+      },
+      "description": "Rounded glass flask with elixir liquid and dynamic reflection highlight."
+    },
+    {
+      "id": "torch_animated",
+      "category": "prop",
+      "name": "Animated Dungeon Torch",
+      "dimensions": [
+        16,
+        16
+      ],
+      "frames": 4,
+      "format": "aseprite + png + tres",
+      "files": {
+        "project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\items\\torch_animated.aseprite",
+        "sheet": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\items\\torch_animated_sheet.png",
+        "godot_tres": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\items\\torch_animated_spriteframes.tres"
+      },
+      "description": "4-frame dancing flame wall torch with Godot 4 SpriteFrames resource."
+    },
+    {
+      "id": "coin_spinning",
+      "category": "prop",
+      "name": "Spinning Gold Coin",
+      "dimensions": [
+        16,
+        16
+      ],
+      "frames": 4,
+      "format": "aseprite + png + tres",
+      "files": {
+        "project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\items\\coin_spinning.aseprite",
+        "sheet": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\items\\coin_spinning_sheet.png",
+        "godot_tres": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\items\\coin_spinning_spriteframes.tres"
+      },
+      "description": "4-frame spinning gold coin collectible with sparkle highlight and Godot 4 SpriteFrames resource."
+    },
+    {
+      "id": "tileset_grass_dirt",
+      "category": "tileset",
+      "name": "Grass & Dirt Autotile",
+      "dimensions": [
+        48,
+        48
+      ],
+      "tile_size": 16,
+      "format": "png",
+      "files": {
+        "sheet": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\tilesets\\tileset_grass_dirt.png"
+      },
+      "description": "Complete 3x3 autotile sheet (48x48) covering corners, edges, centers, and islands for grass_dirt."
+    },
+    {
+      "id": "tileset_stone_dungeon",
+      "category": "tileset",
+      "name": "Stone Dungeon Autotile",
+      "dimensions": [
+        48,
+        48
+      ],
+      "tile_size": 16,
+      "format": "png",
+      "files": {
+        "sheet": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\tilesets\\tileset_stone_dungeon.png"
+      },
+      "description": "Complete 3x3 autotile sheet (48x48) covering corners, edges, centers, and islands for stone_dungeon."
+    },
+    {
+      "id": "tileset_wood_planks",
+      "category": "tileset",
+      "name": "Wood Planks Autotile",
+      "dimensions": [
+        48,
+        48
+      ],
+      "tile_size": 16,
+      "format": "png",
+      "files": {
+        "sheet": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\tilesets\\tileset_wood_planks.png"
+      },
+      "description": "Complete 3x3 autotile sheet (48x48) covering corners, edges, centers, and islands for wood_planks."
+    }
+  ],
+  "qa_audit": {
+    "warrior_hero": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "pixil_knight": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "goblin_rogue": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [
+        "Project contains untouched default 'Layer 1'."
+      ],
+      "ready_for_export": true
+    },
+    "arcane_mage": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [
+        "Project contains untouched default 'Layer 1'."
+      ],
+      "ready_for_export": true
+    },
+    "sword_greatsword": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "potion_health": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "potion_mana": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "potion_stamina": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "potion_elixir": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "torch_animated": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "coin_spinning": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "tileset_grass_dirt": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "tileset_stone_dungeon": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "tileset_wood_planks": {
+      "passed": true,
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    }
+  }
+}
