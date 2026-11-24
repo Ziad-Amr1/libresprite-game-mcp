@@ -1,0 +1,50 @@
+{ "frames": {
+   "dungeon_torch 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 16, "h": 16 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 16 },
+    "sourceSize": { "w": 16, "h": 16 },
+    "duration": 100
+   },
+   "dungeon_torch 1.aseprite": {
+    "frame": { "x": 16, "y": 0, "w": 16, "h": 16 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 16 },
+    "sourceSize": { "w": 16, "h": 16 },
+    "duration": 100
+   },
+   "dungeon_torch 2.aseprite": {
+    "frame": { "x": 0, "y": 16, "w": 16, "h": 16 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 16 },
+    "sourceSize": { "w": 16, "h": 16 },
+    "duration": 100
+   },
+   "dungeon_torch 3.aseprite": {
+    "frame": { "x": 16, "y": 16, "w": 16, "h": 16 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 16 },
+    "sourceSize": { "w": 16, "h": 16 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://github.com/LibreSprite/LibreSprite/",
+  "version": "1.1-dev",
+  "image": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\test_output\\dungeon_torch_sheet.png",
+  "format": "RGBA8888",
+  "size": { "w": 34, "h": 34 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "burn", "from": 0, "to": 3, "direction": "forward" }
+  ],
+  "layers": [
+   { "name": "Layer 1", "opacity": 255, "blendMode": "normal" },
+   { "name": "Torch", "opacity": 255, "blendMode": "normal" }
+  ]
+ }
+}

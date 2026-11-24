@@ -1,0 +1,104 @@
+{
+  "tile_size": 16,
+  "columns": 4,
+  "rows": 3,
+  "theme": "stone_dungeon",
+  "tiles": [
+    {
+      "type": "top-left",
+      "x": 0,
+      "y": 0,
+      "col": 0,
+      "row": 0,
+      "solid": true
+    },
+    {
+      "type": "top",
+      "x": 16,
+      "y": 0,
+      "col": 1,
+      "row": 0,
+      "solid": true
+    },
+    {
+      "type": "top-right",
+      "x": 32,
+      "y": 0,
+      "col": 2,
+      "row": 0,
+      "solid": true
+    },
+    {
+      "type": "island",
+      "x": 48,
+      "y": 0,
+      "col": 3,
+      "row": 0,
+      "solid": true
+    },
+    {
+      "type": "left",
+      "x": 0,
+      "y": 16,
+      "col": 0,
+      "row": 1,
+      "solid": true
+    },
+    {
+      "type": "center",
+      "x": 16,
+      "y": 16,
+      "col": 1,
+      "row": 1,
+      "solid": true
+    },
+    {
+      "type": "right",
+      "x": 32,
+      "y": 16,
+      "col": 2,
+      "row": 1,
+      "solid": true
+    },
+    {
+      "type": "island",
+      "x": 48,
+      "y": 16,
+      "col": 3,
+      "row": 1,
+      "solid": true
+    },
+    {
+      "type": "bottom-left",
+      "x": 0,
+      "y": 32,
+      "col": 0,
+      "row": 2,
+      "solid": true
+    },
+    {
+      "type": "bottom",
+      "x": 16,
+      "y": 32,
+      "col": 1,
+      "row": 2,
+      "solid": true
+    },
+    {
+      "type": "bottom-right",
+      "x": 32,
+      "y": 32,
+      "col": 2,
+      "row": 2,
+      "solid": true
+    },
+    {
+      "type": "island",
+      "x": 48,
+      "y": 32,
+      "col": 3,
+      "row": 2,
+      "solid": true
+    }
+  ]
+}
