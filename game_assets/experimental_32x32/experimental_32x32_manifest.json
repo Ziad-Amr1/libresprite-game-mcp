@@ -1,0 +1,515 @@
+{
+  "exp_32_knight": {
+    "name": "Knight 32",
+    "export": {
+      "name": "Knight 32",
+      "character_id": "exp_32_knight",
+      "aseprite_project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_knight.aseprite",
+      "size": "32x32",
+      "tags": [
+        "idle",
+        "move"
+      ],
+      "layers": [
+        "Shadow",
+        "Body",
+        "Clothes",
+        "Gear"
+      ],
+      "pivot": [
+        0.5,
+        0.9
+      ],
+      "sheet_png": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_knight_sheet.png",
+      "sheet_json": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_knight_sheet.json",
+      "preview_gif": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_knight_preview.gif",
+      "tag_gifs": {
+        "idle": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_knight_idle.gif",
+        "move": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_knight_move.gif"
+      },
+      "godot_spriteframes": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_knight_spriteframes.tres",
+      "preview_png": "game_assets\\experimental_32x32\\exp_32_knight_preview.png",
+      "individual_frames": [
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_00.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_01.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_02.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_03.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_04.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_05.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_06.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_07.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_08.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_09.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_10.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_11.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_12.png",
+        "game_assets\\experimental_32x32\\exp_32_knight_frames\\frame_13.png"
+      ]
+    },
+    "qa": {
+      "asset_name": "exp_32_knight",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "passed": true,
+          "details": {
+            "actual": [
+              32,
+              32
+            ],
+            "expected": [
+              32,
+              32
+            ]
+          }
+        },
+        "alpha_hygiene": {
+          "passed": true,
+          "details": {
+            "semi_transparent_pixel_count": 0,
+            "sample_coords": []
+          }
+        },
+        "palette_adherence": {
+          "passed": true,
+          "details": {
+            "unique_colors_used": 10,
+            "unauthorized_colors": [],
+            "palette_name": "db16"
+          }
+        },
+        "cluster_coherence": {
+          "passed": false,
+          "details": {
+            "orphan_pixel_count": 1,
+            "samples": [
+              [
+                8,
+                23
+              ]
+            ]
+          }
+        },
+        "animation_alignment": {
+          "passed": true,
+          "details": {
+            "contact_zone": [
+              11,
+              21
+            ],
+            "foot_baselines": [
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30
+            ],
+            "max_drift_px": 0,
+            "strict_constraint": false
+          }
+        }
+      },
+      "critical_errors": [],
+      "warnings": [
+        "Cluster noise detected: found 1 isolated orphan pixels with 0 neighbors (samples: [(8, 23)])."
+      ],
+      "ready_for_export": true
+    },
+    "frames_count": 14,
+    "tags": [
+      "idle",
+      "move"
+    ]
+  },
+  "exp_32_mage": {
+    "name": "Arcane Mage 32",
+    "export": {
+      "name": "Arcane Mage 32",
+      "character_id": "exp_32_mage",
+      "aseprite_project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_mage.aseprite",
+      "size": "32x32",
+      "tags": [
+        "idle",
+        "move"
+      ],
+      "layers": [
+        "Shadow",
+        "Body",
+        "Clothes",
+        "Gear"
+      ],
+      "pivot": [
+        0.5,
+        0.9
+      ],
+      "sheet_png": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_mage_sheet.png",
+      "sheet_json": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_mage_sheet.json",
+      "preview_gif": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_mage_preview.gif",
+      "tag_gifs": {
+        "idle": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_mage_idle.gif",
+        "move": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_mage_move.gif"
+      },
+      "godot_spriteframes": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_mage_spriteframes.tres",
+      "preview_png": "game_assets\\experimental_32x32\\exp_32_mage_preview.png",
+      "individual_frames": [
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_00.png",
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_01.png",
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_02.png",
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_03.png",
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_04.png",
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_05.png",
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_06.png",
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_07.png",
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_08.png",
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_09.png",
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_10.png",
+        "game_assets\\experimental_32x32\\exp_32_mage_frames\\frame_11.png"
+      ]
+    },
+    "qa": {
+      "asset_name": "exp_32_mage",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "passed": true,
+          "details": {
+            "actual": [
+              32,
+              32
+            ],
+            "expected": [
+              32,
+              32
+            ]
+          }
+        },
+        "alpha_hygiene": {
+          "passed": true,
+          "details": {
+            "semi_transparent_pixel_count": 0,
+            "sample_coords": []
+          }
+        },
+        "palette_adherence": {
+          "passed": true,
+          "details": {
+            "unique_colors_used": 10,
+            "unauthorized_colors": [],
+            "palette_name": "db16"
+          }
+        },
+        "cluster_coherence": {
+          "passed": true,
+          "details": {
+            "orphan_pixel_count": 0,
+            "samples": []
+          }
+        },
+        "animation_alignment": {
+          "passed": true,
+          "details": {
+            "contact_zone": [
+              11,
+              21
+            ],
+            "foot_baselines": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "max_drift_px": 0,
+            "strict_constraint": false
+          }
+        }
+      },
+      "critical_errors": [],
+      "warnings": [],
+      "ready_for_export": true
+    },
+    "frames_count": 12,
+    "tags": [
+      "idle",
+      "move"
+    ]
+  },
+  "exp_32_goblin": {
+    "name": "Goblin Rogue 32",
+    "export": {
+      "name": "Goblin Rogue 32",
+      "character_id": "exp_32_goblin",
+      "aseprite_project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_goblin.aseprite",
+      "size": "32x32",
+      "tags": [
+        "idle",
+        "move"
+      ],
+      "layers": [
+        "Shadow",
+        "Body",
+        "Clothes",
+        "Gear"
+      ],
+      "pivot": [
+        0.5,
+        0.9
+      ],
+      "sheet_png": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_goblin_sheet.png",
+      "sheet_json": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_goblin_sheet.json",
+      "preview_gif": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_goblin_preview.gif",
+      "tag_gifs": {
+        "idle": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_goblin_idle.gif",
+        "move": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_goblin_move.gif"
+      },
+      "godot_spriteframes": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_goblin_spriteframes.tres",
+      "preview_png": "game_assets\\experimental_32x32\\exp_32_goblin_preview.png",
+      "individual_frames": [
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_00.png",
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_01.png",
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_02.png",
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_03.png",
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_04.png",
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_05.png",
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_06.png",
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_07.png",
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_08.png",
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_09.png",
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_10.png",
+        "game_assets\\experimental_32x32\\exp_32_goblin_frames\\frame_11.png"
+      ]
+    },
+    "qa": {
+      "asset_name": "exp_32_goblin",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "passed": true,
+          "details": {
+            "actual": [
+              32,
+              32
+            ],
+            "expected": [
+              32,
+              32
+            ]
+          }
+        },
+        "alpha_hygiene": {
+          "passed": true,
+          "details": {
+            "semi_transparent_pixel_count": 0,
+            "sample_coords": []
+          }
+        },
+        "palette_adherence": {
+          "passed": true,
+          "details": {
+            "unique_colors_used": 9,
+            "unauthorized_colors": [],
+            "palette_name": "db16"
+          }
+        },
+        "cluster_coherence": {
+          "passed": false,
+          "details": {
+            "orphan_pixel_count": 2,
+            "samples": [
+              [
+                7,
+                8
+              ],
+              [
+                24,
+                8
+              ]
+            ]
+          }
+        },
+        "animation_alignment": {
+          "passed": true,
+          "details": {
+            "contact_zone": [
+              11,
+              21
+            ],
+            "foot_baselines": [
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30,
+              30
+            ],
+            "max_drift_px": 0,
+            "strict_constraint": false
+          }
+        }
+      },
+      "critical_errors": [],
+      "warnings": [
+        "Cluster noise detected: found 2 isolated orphan pixels with 0 neighbors (samples: [(7, 8), (24, 8)])."
+      ],
+      "ready_for_export": true
+    },
+    "frames_count": 12,
+    "tags": [
+      "idle",
+      "move"
+    ]
+  },
+  "exp_32_heavy_brute": {
+    "name": "Dwarf Brute 32",
+    "export": {
+      "name": "Dwarf Brute 32",
+      "character_id": "exp_32_heavy_brute",
+      "aseprite_project": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_heavy_brute.aseprite",
+      "size": "32x32",
+      "tags": [
+        "idle",
+        "move"
+      ],
+      "layers": [
+        "Shadow",
+        "Body",
+        "Clothes",
+        "Gear"
+      ],
+      "pivot": [
+        0.5,
+        0.9
+      ],
+      "sheet_png": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_heavy_brute_sheet.png",
+      "sheet_json": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_heavy_brute_sheet.json",
+      "preview_gif": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_heavy_brute_preview.gif",
+      "tag_gifs": {
+        "idle": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_heavy_brute_idle.gif",
+        "move": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_heavy_brute_move.gif"
+      },
+      "godot_spriteframes": "E:\\course\\03_Programming_Data\\AI\\Projects\\libresprite\\game_assets\\experimental_32x32\\exp_32_heavy_brute_spriteframes.tres",
+      "preview_png": "game_assets\\experimental_32x32\\exp_32_heavy_brute_preview.png",
+      "individual_frames": [
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_00.png",
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_01.png",
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_02.png",
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_03.png",
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_04.png",
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_05.png",
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_06.png",
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_07.png",
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_08.png",
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_09.png",
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_10.png",
+        "game_assets\\experimental_32x32\\exp_32_heavy_brute_frames\\frame_11.png"
+      ]
+    },
+    "qa": {
+      "asset_name": "exp_32_heavy_brute",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "passed": true,
+          "details": {
+            "actual": [
+              32,
+              32
+            ],
+            "expected": [
+              32,
+              32
+            ]
+          }
+        },
+        "alpha_hygiene": {
+          "passed": true,
+          "details": {
+            "semi_transparent_pixel_count": 0,
+            "sample_coords": []
+          }
+        },
+        "palette_adherence": {
+          "passed": true,
+          "details": {
+            "unique_colors_used": 10,
+            "unauthorized_colors": [],
+            "palette_name": "db16"
+          }
+        },
+        "cluster_coherence": {
+          "passed": false,
+          "details": {
+            "orphan_pixel_count": 2,
+            "samples": [
+              [
+                9,
+                4
+              ],
+              [
+                22,
+                4
+              ]
+            ]
+          }
+        },
+        "animation_alignment": {
+          "passed": true,
+          "details": {
+            "contact_zone": [
+              11,
+              21
+            ],
+            "foot_baselines": [
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31,
+              31
+            ],
+            "max_drift_px": 0,
+            "strict_constraint": false
+          }
+        }
+      },
+      "critical_errors": [],
+      "warnings": [
+        "Cluster noise detected: found 2 isolated orphan pixels with 0 neighbors (samples: [(9, 4), (22, 4)])."
+      ],
+      "ready_for_export": true
+    },
+    "frames_count": 12,
+    "tags": [
+      "idle",
+      "move"
+    ]
+  }
+}

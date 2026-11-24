@@ -21,9 +21,6 @@ from libresprite_game_mcp.exporters.game_export import (
     export_pixilart_project,
     export_sprite_sheet_native,
 )
-from libresprite_game_mcp.generators.character_generator import (
-    build_animated_character_project,
-)
 from libresprite_game_mcp.generators.item_generator import (
     generate_potion_icon,
     generate_sword_icon,
@@ -98,6 +95,7 @@ def _prod_generate_character(params: Dict[str, Any], workspace: Path) -> Dict[st
         proportion=proportion,
     )
 
+    from libresprite_game_mcp.generators.character_generator import build_animated_character_project
     project = build_animated_character_project(blueprint=bp, palette_name=palette_name)
     target_path = workspace / f"{character_id}.aseprite"
     project.save(target_path)

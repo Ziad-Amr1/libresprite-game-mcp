@@ -256,6 +256,57 @@ def export_animated_gif(
     return gif_path
 
 
+def export_tag_gifs(
+    project: AsepriteProject,
+    output_dir: Union[str, Path],
+    character_id: str,
+    scale: int = 4,
+    loop: int = 0,
+) -> Dict[str, str]:
+    """
+    Exports individual looping GIFs for each tagged animation in the project (e.g. idle.gif, move.gif).
+    """
+    out_dir = Path(output_dir).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    all_frames = project.get_all_frame_images()
+    if not all_frames:
+        return {}
+
+    exported: Dict[str, str] = {}
+    for tag in project.sprite.tags:
+        from_f = max(0, min(tag.from_frame, len(all_frames) - 1))
+        to_f = max(0, min(tag.to_frame, len(all_frames) - 1))
+        if from_f > to_f:
+            from_f, to_f = to_f, from_f
+
+        tag_frames = []
+        durations = []
+        for i in range(from_f, to_f + 1):
+            sf = all_frames[i].resize(
+                (all_frames[i].width * scale, all_frames[i].height * scale),
+                Image.Resampling.NEAREST
+            )
+            tag_frames.append(sf)
+            d = 100
+            if i < len(project.sprite.frames):
+                d = project.sprite.frames[i].duration_ms
+            durations.append(d)
+
+        if tag_frames:
+            tag_gif_path = out_dir / f"{character_id}_{tag.name}.gif"
+            tag_frames[0].save(
+                tag_gif_path,
+                save_all=True,
+                append_images=tag_frames[1:],
+                duration=durations,
+                loop=loop,
+                disposal=2,
+            )
+            exported[tag.name] = str(tag_gif_path)
+
+    return exported
+
+
 def export_pixilart_project(
     project: AsepriteProject,
     output_pixil: Union[str, Path],

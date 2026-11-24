@@ -46,6 +46,7 @@ from libresprite_game_mcp.exporters.game_export import (
     export_sprite_sheet_native,
     export_godot_spriteframes,
     export_animated_gif,
+    export_tag_gifs,
     export_pixilart_project,
 )
 from libresprite_game_mcp.bridge.http_relay import (
@@ -182,6 +183,9 @@ def create_character_from_blueprint(
         gif_path = out_dir / f"{bp_model.character_id}_preview.gif"
         export_animated_gif(project, gif_path, scale=4)
         result["preview_gif"] = str(gif_path)
+        tag_gifs = export_tag_gifs(project, out_dir, bp_model.character_id, scale=4)
+        if tag_gifs:
+            result["tag_gifs"] = tag_gifs
 
     # Export Godot 4.x SpriteFrames with accurate AtlasTexture SubResources & frame duration factors
     if export_godot:

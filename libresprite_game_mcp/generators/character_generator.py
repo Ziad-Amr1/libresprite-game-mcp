@@ -555,6 +555,21 @@ def generate_character_frame(
     Renders layered frame images for a character across specialized anatomical archetypes.
     Returns dict: {"Shadow": img, "Body": img, "Clothes": img, "Gear": img}
     """
+    if width >= 32 or height >= 32:
+        from libresprite_game_mcp.generators.character_generator_32 import generate_character_frame_32
+        resolved_arch = archetype or (blueprint.archetype if blueprint else None) or resolve_archetype(blueprint)
+        colors_dict = blueprint.colors if blueprint else None
+        return generate_character_frame_32(
+            width=width,
+            height=height,
+            action=action,
+            frame_step=frame_step,
+            direction=direction,
+            archetype=resolved_arch,
+            palette_name=palette_name,
+            colors=colors_dict,
+        )
+
     if style is None:
         style = CharacterStyle()
 
@@ -676,6 +691,21 @@ def build_animated_character_project(
     Builds an Aseprite project containing animations defined by CharacterBlueprint.
     Falls back gracefully to standard animations if legacy parameters are provided.
     """
+    if (blueprint is not None and (blueprint.size[0] >= 32 or blueprint.size[1] >= 32)) or width >= 32 or height >= 32:
+        from libresprite_game_mcp.generators.character_generator_32 import build_animated_character_project_32
+        if blueprint is None:
+            blueprint = CharacterBlueprint(
+                character_id="hero_32",
+                name="Hero 32",
+                size=(width, height),
+                archetype=resolve_archetype(name=None),
+            )
+        return build_animated_character_project_32(
+            blueprint=blueprint,
+            profile=profile,
+            palette_name=palette_name,
+        )
+
     effective_palette = palette_name or (profile.palette_name if profile else "db16")
 
     if blueprint is not None:

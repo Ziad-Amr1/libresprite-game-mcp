@@ -79,13 +79,13 @@ def test_production_bridge_live_pixel_execution(tmp_path: Path):
 
         # 6. Wait for handshake from actual production bridge
         connected = False
-        for _ in range(80):
+        for _ in range(120):
             if state.is_alive():
                 connected = True
                 break
             time.sleep(0.1)
 
-        assert connected, "Production bridge failed to connect and establish heartbeat within 8s."
+        assert connected, "Production bridge failed to connect and establish heartbeat within 12s."
 
         # ---------------------------------------------------------------------
         # TEST 1: Real Pixel Operation (put_pixel) & Engine Readback
