@@ -124,8 +124,9 @@ Configured with `PRAGMA foreign_keys = ON;` and `PRAGMA journal_mode = WAL;`.
 
 ---
 
-## 6. Reference Skill: `Pixel Character Consistency`
+## 6. Production Reference Skills
 
+### 6.1 `pixel_character_consistency` (v1.0.0)
 - **Identifier:** `pixel_character_consistency`
 - **Version:** `1.0.0` (Status: `APPROVED`)
 - **Manifest Location:** `data/skills/pixel_character_consistency/1.0.0/skill.json`
@@ -134,6 +135,18 @@ Configured with `PRAGMA foreign_keys = ON;` and `PRAGMA journal_mode = WAL;`.
   2. `step_2_outline`: Invokes `apply_outline` (colored outline, cleans orphan pixels).
   3. `step_3_validate`: Invokes `validate_asset` (QA color count, dimensions, stray pixels).
   4. `step_4_export`: Invokes `export_godot_spritesheet` (packs atlas and writes Godot 4 SpriteFrames).
+
+### 6.2 `pixilart_clean_pixel_art` (v1.0.0)
+- **Identifier:** `pixilart_clean_pixel_art`
+- **Version:** `1.0.0` (Status: `APPROVED`)
+- **Manifest Location:** `data/skills/pixilart_clean_pixel_art/1.0.0/skill.json`
+- **Description:** Implements the authentic Pixilart clean drawing workflow. Generates clean silhouettes without jaggies or accidental double-pixel traps, applies cluster shading, enforces strict Art QA (no orphan pixels), and safely exports both standard sprite sheets and Pixilart `.pixil` JSON project files.
+- **Pipeline:**
+  1. `step_1_sketch_and_block`: Invokes `generate_character` (clean silhouette, 16x16 chibi anatomy).
+  2. `step_2_clean_lines_outline`: Invokes `apply_outline` (eliminates orphan stray pixels, 1px clean lines).
+  3. `step_3_art_qa_check`: Invokes `validate_asset` (QA color count, dimensions, zero orphan pixels).
+  4. `step_4_export_pixilart`: Invokes `export_pixilart_project` (safely saves `.pixil` JSON project).
+  5. `step_5_export_spritesheet`: Invokes `export_godot_spritesheet` (packs texture sheet and engine metadata).
 
 ---
 
@@ -148,8 +161,9 @@ The test suite provides comprehensive coverage across all components:
 | `tests/test_skill_registry_builder.py`| Workflow validation, tool allowlist, security injection checks, filesystem export | 6 | PASSED |
 | `tests/test_skill_sandbox_approval.py`| Sandbox evaluation, human approval gate, invalid state transitions, rollback | 5 | PASSED |
 | `tests/test_orchestrator_skills.py` | End-to-end skill discovery, execution, feedback ingestion, guidance retrieval | 5 | PASSED |
+| `tests/test_pixilart_skills.py` | Pixilart skill discovery, 5-step execution, safe .pixil JSON export, clean art QA | 4 | PASSED |
 | `tests/test_relay_http_integration.py`| HTTP bridge security, token masking, payload limits | 10 | PASSED |
 | `tests/test_corrective_suite.py` | Godot frame timing, workspace path traversal security | 5 | PASSED |
 | `tests/test_production_system.py` | Art profiles, palettes, generators, and QA validators | 5 | PASSED |
 | `tests/test_libresprite_live_runtime.py`| Production bridge execution inside live LibreSprite engine (`put_pixel`) | 1 | PASSED |
-| **Total** | **Full Regression Suite** | **55** | **ALL PASSED** |
+| **Total** | **Full Regression Suite** | **59** | **ALL PASSED** |

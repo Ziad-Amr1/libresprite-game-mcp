@@ -46,6 +46,7 @@ from libresprite_game_mcp.exporters.game_export import (
     export_sprite_sheet_native,
     export_godot_spriteframes,
     export_animated_gif,
+    export_pixilart_project,
 )
 from libresprite_game_mcp.bridge.http_relay import (
     state,
@@ -403,6 +404,28 @@ def export_asset_sprite_sheet(
         project = AsepriteProject.load(inp)
         res = export_sprite_sheet_native(project, out_png, out_json, padding=shape_padding)
         return res
+
+
+@mcp.tool()
+def export_pixilart_file(
+    input_aseprite_file: str,
+    output_pixil: Optional[str] = None,
+    title: str = "Pixilart Asset",
+) -> Dict:
+    """
+    Exports an Aseprite/LibreSprite file to Pixilart .pixil JSON format.
+    Enforces safe workspace boundary resolution so all outputs save cleanly.
+    """
+    inp = workspace_policy.safe_resolve(input_aseprite_file, must_exist=True)
+    out_pix = workspace_policy.safe_resolve(output_pixil) if output_pixil else inp.with_suffix(".pixil")
+    project = AsepriteProject.load(inp)
+    saved_path = export_pixilart_project(project, out_pix, title=title)
+    return {
+        "status": "success",
+        "saved_path": str(saved_path),
+        "format": "pixil",
+        "frames": len(project.sprite.frames),
+    }
 
 
 @mcp.tool()

@@ -266,7 +266,10 @@ def build_animated_character_project(
     if blueprint is not None:
         width, height = blueprint.size
         style = blueprint_to_style(blueprint)
-        animations_dict = blueprint.animations
+        animations_dict = blueprint.animations if blueprint.animations else {
+            "idle": CharacterAnimationSpec(frames=2, duration_ms=300, loop=True),
+            "walk": CharacterAnimationSpec(frames=4, duration_ms=120, loop=True),
+        }
     else:
         style = style or CharacterStyle()
         # Default legacy animations

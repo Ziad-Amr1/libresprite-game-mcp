@@ -74,6 +74,8 @@ class ProductionOrchestrator:
             return {"passed": True, "critical_errors": [], "warnings": []}
         elif tool_name == "export_godot_spritesheet":
             return {"exported": True, "engine": "godot_4", "frame_count": 2, "qa_passed": True}
+        elif tool_name == "export_pixilart_project":
+            return {"exported": True, "format": "pixil", "saved": True, "qa_passed": True}
         return {"status": "ok", "qa_passed": True}
 
     def _seed_reference_skills(self) -> None:
@@ -128,6 +130,68 @@ class ProductionOrchestrator:
                 author="ArtDirector_Lead",
             )
             self.skill_registry.register_skill(ref_skill, sync_fs=True, force=True)
+
+        existing_pixil = self.skill_repo.get_skill_version("pixilart_clean_pixel_art", "1.0.0")
+        if not existing_pixil:
+            pixil_workflow = [
+                WorkflowStep(
+                    step_id="step_1_sketch_and_block",
+                    tool_name="generate_character",
+                    description="Blocks out character anatomy avoiding jaggies and double pixels",
+                    parameters={"size": [16, 16], "proportion": "chibi_1_2"},
+                ),
+                WorkflowStep(
+                    step_id="step_2_clean_lines_outline",
+                    tool_name="apply_outline",
+                    description="Applies selective 1px outline and eliminates orphan stray pixels",
+                    parameters={"mode": "colored", "source_step": "step_1_sketch_and_block"},
+                ),
+                WorkflowStep(
+                    step_id="step_3_art_qa_check",
+                    tool_name="validate_asset",
+                    description="Performs Art QA audit verifying palette, contrast, and zero orphan pixels",
+                    parameters={"source_step": "step_2_clean_lines_outline"},
+                ),
+                WorkflowStep(
+                    step_id="step_4_export_pixilart",
+                    tool_name="export_pixilart_project",
+                    description="Exports and safely saves project to Pixilart .pixil JSON format",
+                    parameters={"source_step": "step_3_art_qa_check"},
+                ),
+                WorkflowStep(
+                    step_id="step_5_export_spritesheet",
+                    tool_name="export_godot_spritesheet",
+                    description="Packs final sprite sheet and engine animation metadata",
+                    parameters={"source_step": "step_4_export_pixilart"},
+                ),
+            ]
+
+            pixil_skill = SkillDefinition(
+                skill_id="pixilart_clean_pixel_art",
+                version="1.0.0",
+                name="Pixilart Clean Art & Export Pipeline",
+                description="Pixilart drawing skill: generates clean silhouettes avoiding jaggies, applies cluster shading, enforces Art QA without orphan pixels, and safely saves .pixil project files and game sprite sheets.",
+                status=SkillStatus.APPROVED,
+                trigger_conditions={"task_category": "character", "style": "pixilart"},
+                required_tools=["generate_character", "apply_outline", "validate_asset", "export_pixilart_project", "export_godot_spritesheet"],
+                parameters_schema={
+                    "character_id": {"type": "string", "description": "Character ID"},
+                    "name": {"type": "string", "description": "Character Name"},
+                    "size": {"type": "array", "default": [16, 16]},
+                    "proportion": {"type": "string", "default": "chibi_1_2"},
+                    "outline_mode": {"type": "string", "default": "colored"},
+                },
+                workflow=pixil_workflow,
+                validation_rules={
+                    "require_qa_pass": True,
+                    "no_jaggies": True,
+                    "no_orphan_pixels": True,
+                    "safe_save": True,
+                },
+                art_profile_compatibility=["DefaultGame", "RetroFantasy", "PixilartCommunity"],
+                author="Pixilart_ArtDirector",
+            )
+            self.skill_registry.register_skill(pixil_skill, sync_fs=True, force=True)
 
     def get_knowledge_guidance(
         self,

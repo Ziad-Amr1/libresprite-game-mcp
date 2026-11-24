@@ -16,6 +16,7 @@ APPROVED_MCP_TOOLS: Set[str] = {
     "generate_item",
     "validate_asset",
     "export_godot_spritesheet",
+    "export_pixilart_project",
     "apply_outline",
     "apply_palette",
     "generate_walk_cycle",

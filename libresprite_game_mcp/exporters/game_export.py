@@ -254,3 +254,77 @@ def export_animated_gif(
         disposal=2,
     )
     return gif_path
+
+
+def export_pixilart_project(
+    project: AsepriteProject,
+    output_pixil: Union[str, Path],
+    title: str = "Pixilart Asset",
+    fps: int = 10,
+) -> Path:
+    """
+    Exports an AsepriteProject into a valid .pixil JSON project format
+    compatible with Pixilart web and desktop editors.
+    """
+    pixil_path = Path(output_pixil).resolve()
+    pixil_path.parent.mkdir(parents=True, exist_ok=True)
+
+    frames_img = project.get_all_frame_images()
+    if not frames_img:
+        raise ValueError("Project contains no frames to export.")
+
+    w = project.width
+    h = project.height
+
+    palette_set = set()
+    pixil_frames = []
+
+    for idx, frame in enumerate(frames_img):
+        rgba = frame.convert("RGBA")
+        pixels = []
+        dur_ms = 100
+        if idx < len(project.sprite.frames):
+            dur_ms = project.sprite.frames[idx].duration_ms
+
+        for y in range(h):
+            for x in range(w):
+                r, g, b, a = rgba.getpixel((x, y))
+                if a > 0:
+                    hex_color = f"#{r:02x}{g:02x}{b:02x}"
+                    palette_set.add(hex_color)
+                    pixels.append({
+                        "x": x,
+                        "y": y,
+                        "color": hex_color,
+                        "opacity": round(a / 255.0, 2),
+                    })
+
+        pixil_frames.append({
+            "frame_index": idx,
+            "duration_ms": dur_ms,
+            "layers": [
+                {
+                    "name": "Layer 1",
+                    "opacity": 1.0,
+                    "visible": True,
+                    "pixels": pixels,
+                }
+            ],
+        })
+
+    pixil_data = {
+        "version": "1.0.0",
+        "format": "pixil",
+        "title": title,
+        "width": w,
+        "height": h,
+        "fps": fps,
+        "palette": sorted(list(palette_set)),
+        "frames": pixil_frames,
+    }
+
+    with open(pixil_path, "w", encoding="utf-8") as f:
+        json.dump(pixil_data, f, indent=2)
+
+    return pixil_path
+
