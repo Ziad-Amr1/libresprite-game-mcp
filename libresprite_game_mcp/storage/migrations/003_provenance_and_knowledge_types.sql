@@ -46,5 +46,6 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_project_id ON knowledge(project_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge(category);
 CREATE INDEX IF NOT EXISTS idx_knowledge_confidence ON knowledge(confidence_score);
 CREATE INDEX IF NOT EXISTS idx_knowledge_type ON knowledge(knowledge_type);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_unique_rule ON knowledge(rule_name, COALESCE(project_id, '__UNIVERSAL__'));
 
 PRAGMA foreign_keys = ON;

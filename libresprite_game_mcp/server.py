@@ -35,16 +35,41 @@ from libresprite_game_mcp.generators.character_generator import (
 )
 from libresprite_game_mcp.generators.tileset_generator import (
     build_autotile_3x3_sheet,
+    build_blob47_sheet,
+    build_wang16_sheet,
+    generate_tileset_suite,
+)
+from libresprite_game_mcp.generators.title_generator import (
+    generate_title_assets,
+    build_game_title_logo,
 )
 from libresprite_game_mcp.generators.item_generator import (
     generate_sword_icon,
+    generate_weapon_icon,
+    generate_armor_icon,
     generate_potion_icon,
+    generate_consumable_icon,
     build_animated_torch_project,
     build_animated_coin_project,
+    build_animated_radiant_lantern,
+    build_animated_shadow_orb,
+    build_animated_crystal_shard,
+    build_animated_heart_pickup,
+    build_animated_key_pickup,
+    build_animated_gem_drop,
+    build_animated_chest_project,
+    build_animated_pot_break_project,
+)
+from libresprite_game_mcp.generators.vfx_generator import (
+    build_animated_projectile,
+    build_animated_impact,
+    build_animated_aoe_rune,
+    build_animated_shield_aura,
 )
 from libresprite_game_mcp.exporters.game_export import (
     export_sprite_sheet_native,
     export_godot_spriteframes,
+    export_godot_tileset,
     export_animated_gif,
     export_tag_gifs,
     export_pixilart_project,
@@ -59,12 +84,15 @@ from libresprite_game_mcp.models.schemas import (
     ValidationReport,
 )
 from libresprite_game_mcp.qa.validator import AssetValidator
+from libresprite_game_mcp.core.orchestrator import ProductionOrchestrator
 
-# Initialize FastMCP Server
+# Initialize FastMCP Server and Production Orchestrator
 mcp = FastMCP(
     "LibreSprite-Game-MCP",
     dependencies=["pillow", "aseprite", "mcp", "pydantic"],
 )
+
+orchestrator = ProductionOrchestrator()
 
 
 def safe_resolve_output_dir(output_dir: Optional[str] = None) -> Path:
@@ -141,20 +169,36 @@ def create_character_from_blueprint(
     Validates blueprint schema, renders custom animations/durations, and exports engine-ready assets.
     """
     # 1. Validate Blueprint with Pydantic
+    import time
+    start_time = time.perf_counter()
+
     bp_model = CharacterBlueprint.model_validate(blueprint)
     profile_model = ArtProfile.model_validate(profile) if profile else None
 
     out_dir = safe_resolve_output_dir(output_dir)
     palette_name = profile_model.palette_name if profile_model else "db16"
+    width, height = bp_model.size
 
-    # 2. Build Aseprite Project
+    # 2. Retrieve Learning Layer Guidance from ProductionOrchestrator
+    project_id = profile_model.project_name if profile_model else "default"
+    guidance = orchestrator.build_character_guidance(
+        resolution=(width, height),
+        art_profile_name=profile_model.project_name if profile_model else "DefaultGame",
+        archetype=bp_model.archetype,
+        palette_name=palette_name,
+        project_id=project_id,
+    )
+
+    # 3. Build Aseprite Project with Learning Layer guidance
     project = build_animated_character_project(
         blueprint=bp_model,
         profile=profile_model,
         palette_name=palette_name,
+        guidance=guidance.model_dump(),
     )
     ase_file = out_dir / f"{bp_model.character_id}.aseprite"
     project.save(ase_file)
+    duration_ms = (time.perf_counter() - start_time) * 1000.0
 
     width, height = bp_model.size
     result = {
@@ -200,6 +244,28 @@ def create_character_from_blueprint(
             sheet_size=meta["sheet_size"] if export_sheet else None,
         )
         result["godot_spriteframes"] = str(godot_tres)
+
+    # 4. Record experience in Learning Layer
+    exp = orchestrator.experience_collector.record_task_run(
+        task_id=f"mcp_blueprint_{bp_model.character_id}_{int(time.time() * 1000)}",
+        task_category="character",
+        asset_category="sprite",
+        resolution=(width, height),
+        input_context={
+            "blueprint": bp_model.model_dump(),
+            "profile": profile_model.model_dump() if profile_model else None,
+        },
+        output_summary=result,
+        tools_used=["create_character_from_blueprint"],
+        execution_time_ms=duration_ms,
+        execution_outcome="SUCCESS",
+        art_profile={"name": profile_model.project_name if profile_model else "DefaultGame", "palette": palette_name},
+        project_id=project_id,
+    )
+    result["experience_id"] = exp.id
+    result["guidance_applied"] = guidance.applicable_rules
+    result["guidance_rules_consumed"] = getattr(project, "metadata", {}).get("guidance_rules_consumed", [])
+    result["guidance_rules_ignored"] = getattr(project, "metadata", {}).get("guidance_rules_ignored", [])
 
     return result
 
@@ -250,16 +316,23 @@ def create_character_sprite(
 def create_autotile_tileset(
     name: str = "world_tiles",
     tile_size: int = 16,
-    theme: str = "grass_dirt",  # "grass_dirt", "stone_dungeon", "wood_planks"
+    theme: str = "grass_dirt",  # "grass_dirt", "stone_dungeon", "wood_planks", "sand_desert", "snow_ice", "scifi_metal"
+    system: str = "blob_47",    # "blob_47" (48 tiles), "wang_16" (16 tiles), "autotile_3x3" (12 tiles)
+    export_godot: bool = False,
     output_dir: Optional[str] = None,
 ) -> Dict:
     """
-    Generates a 3x3 (+ island) autotile sheet (corners, edges, center, island)
-    for platformers or top-down games. Exports PNG texture and tile coordinate metadata.
+    Generates production-grade autotile sheets with cluster shading and seamless connections.
+    Supports 47-blob (8x6), 16-wang (4x4), and 3x3 platformers.
+    Optionally exports Godot 4.x TileSet (.tres) resource with physics collisions.
     """
     out_dir = safe_resolve_output_dir(output_dir)
 
-    sheet_img, metadata = build_autotile_3x3_sheet(tile_size, theme)
+    sheet_img, metadata = generate_tileset_suite(
+        system=system,
+        tile_size=tile_size,
+        theme_name=theme,
+    )
     png_path = out_dir / f"{name}.png"
     json_path = out_dir / f"{name}.json"
 
@@ -268,67 +341,270 @@ def create_autotile_tileset(
         import json
         json.dump(metadata, f, indent=2)
 
-    return {
+    result = {
         "tileset_name": name,
         "theme": theme,
+        "system": system,
         "tile_size": tile_size,
         "sheet_png": str(png_path),
         "metadata_json": str(json_path),
-        "total_tiles": len(metadata["tiles"]),
+        "total_tiles": metadata.get("total_tiles", len(metadata["tiles"])),
+        "width": sheet_img.width,
+        "height": sheet_img.height,
     }
+
+    if export_godot:
+        tres_path = out_dir / f"{name}.tres"
+        export_godot_tileset(
+            tileset_meta=metadata,
+            sheet_texture_res_path=f"res://{png_path.name}",
+            output_tres_path=tres_path,
+            terrain_name=theme,
+        )
+        result["godot_tres"] = str(tres_path)
+
+    return result
+
+
+@mcp.tool()
+def create_game_title_logo(
+    title: str = "LIBRESPRITE",
+    subtitle: Optional[str] = None,
+    theme: str = "fantasy_gold",  # "fantasy_gold", "cyberpunk_neon", "eldritch_gothic", "arcade_fire", "steel_chrome"
+    scale: int = 2,
+    extrusion_depth: int = 4,
+    name: str = "game_title",
+    output_dir: Optional[str] = None,
+) -> Dict:
+    """
+    Generates a retro pixel art game title and logo banner.
+    Produces layered .aseprite project, high-res PNG, and animated twinkle GIF.
+    """
+    out_dir = safe_resolve_output_dir(output_dir)
+
+    return generate_title_assets(
+        title_text=title,
+        subtitle=subtitle,
+        theme_name=theme,
+        scale=scale,
+        extrusion_depth=extrusion_depth,
+        output_dir=out_dir,
+        file_prefix=name,
+    )
 
 
 @mcp.tool()
 def create_game_item(
-    item_type: str = "sword",  # "sword", "potion", "torch", "coin"
+    item_type: str = "sword",
     name: str = "item",
     size: int = 16,
-    potion_variant: str = "health",  # "health", "mana", "stamina", "elixir"
+    variant: Optional[str] = None,
+    potion_variant: str = "health",
     export_gif: bool = True,
+    export_sheet: bool = True,
+    export_godot: bool = False,
     output_dir: Optional[str] = None,
 ) -> Dict:
     """
-    Generates pixel art game items, weapons, potions, or animated props (torches, coins).
+    Generates pixel art game items, weapons, potions, animated pickups, containers, and props.
+    Supported item_type:
+      - sword, weapon (variants: radiant_sword, void_dagger, iron_broadsword, shadow_scythe, starlight_staff, hunter_bow)
+      - shield, armor (variants: radiant_shield, iron_buckler, void_barrier)
+      - potion, consumable (variants: health, mana, stamina, elixir_dawn, void_draught, cozy_apple, golden_apple, glow_mushroom, ancient_scroll)
+      - shard (variants: radiant, void, arcane, life)
+      - heart (vitality pickup)
+      - key (variants: golden, skeleton)
+      - gem (variants: ruby, sapphire, emerald, amethyst, diamond)
+      - coin (variants: gold, silver, copper)
+      - chest (variants: wood_gold, sanctuary_white, shadow_crypt)
+      - pot (variants: terracotta, urn_ancient)
+      - lantern (sacred radiant lantern)
+      - shadow_orb (eldritch void orb)
+      - torch (dungeon wall torch)
+    Optionally exports Godot 4.x SpriteFrames (.tres) and animated GIFs.
     """
     out_dir = safe_resolve_output_dir(output_dir)
-
     result = {"item_type": item_type, "size": f"{size}x{size}"}
 
-    if item_type == "sword":
-        img = generate_sword_icon(size)
+    project = None
+    img = None
+    effective_variant = variant or potion_variant
+
+    if item_type in ("sword", "weapon"):
+        w_type = variant or "radiant_sword" if item_type == "weapon" else "iron_broadsword"
+        img = generate_weapon_icon(w_type, size=size)
+        result["variant"] = w_type
+
+    elif item_type in ("shield", "armor"):
+        a_type = variant or "radiant_shield"
+        img = generate_armor_icon(a_type, size=size)
+        result["variant"] = a_type
+
+    elif item_type in ("potion", "consumable"):
+        c_type = variant or (f"{potion_variant}_potion" if item_type == "consumable" else potion_variant)
+        img = generate_consumable_icon(c_type, size=size)
+        result["variant"] = c_type
+
+    elif item_type in ("shard", "crystal"):
+        elem = variant or "radiant"
+        project = build_animated_crystal_shard(size=size, element=elem)
+        result["variant"] = elem
+
+    elif item_type == "heart":
+        project = build_animated_heart_pickup(size=size)
+
+    elif item_type == "key":
+        k_type = variant or "golden"
+        project = build_animated_key_pickup(size=size, key_type=k_type)
+        result["variant"] = k_type
+
+    elif item_type == "gem":
+        g_type = variant or "ruby"
+        project = build_animated_gem_drop(size=size, gem_type=g_type)
+        result["variant"] = g_type
+
+    elif item_type == "coin":
+        c_var = variant or "gold"
+        project = build_animated_coin_project(size=size, variant=c_var)
+        result["variant"] = c_var
+
+    elif item_type == "chest":
+        ch_type = variant or "wood_gold"
+        project = build_animated_chest_project(size=size, chest_type=ch_type)
+        result["variant"] = ch_type
+
+    elif item_type == "pot":
+        p_type = variant or "terracotta"
+        project = build_animated_pot_break_project(size=size, pot_type=p_type)
+        result["variant"] = p_type
+
+    elif item_type == "torch":
+        project = build_animated_torch_project(size=size)
+
+    elif item_type == "lantern":
+        project = build_animated_radiant_lantern(size=size)
+
+    elif item_type == "shadow_orb":
+        project = build_animated_shadow_orb(size=size)
+
+    else:
+        raise ValueError(
+            f"Unknown item_type '{item_type}'. Supported: sword, weapon, shield, armor, potion, consumable, "
+            f"shard, heart, key, gem, coin, chest, pot, torch, lantern, shadow_orb"
+        )
+
+    # Export project or static image
+    if project is not None:
+        ase_path = out_dir / f"{name}.aseprite"
+        project.save(ase_path)
+        result["aseprite_project"] = str(ase_path)
+
+        sheet_res = None
+        if export_sheet:
+            sheet_png = out_dir / f"{name}_sheet.png"
+            sheet_json = out_dir / f"{name}_sheet.json"
+            sheet_res = export_sprite_sheet_native(project, sheet_png, sheet_json)
+            result["sheet_png"] = str(sheet_png)
+            result["sheet_json"] = str(sheet_json)
+
+        if export_gif:
+            gif_path = out_dir / f"{name}.gif"
+            export_animated_gif(project, gif_path, scale=4)
+            result["preview_gif"] = str(gif_path)
+
+        if export_godot:
+            godot_tres = out_dir / f"{name}.tres"
+            sheet_tex = f"res://{name}_sheet.png" if export_sheet else f"res://{name}.png"
+            export_godot_spriteframes(
+                project=project,
+                sheet_texture_res_path=sheet_tex,
+                output_tres_path=godot_tres,
+                frame_rects=sheet_res["frame_rects"] if sheet_res else None,
+                sheet_size=sheet_res["sheet_size"] if sheet_res else None,
+                fps=8.0,
+            )
+            result["godot_tres"] = str(godot_tres)
+
+    elif img is not None:
         png_path = out_dir / f"{name}.png"
         img.save(png_path)
         result["image_png"] = str(png_path)
 
-    elif item_type == "potion":
-        img = generate_potion_icon(size, potion_variant)
-        png_path = out_dir / f"{name}_{potion_variant}.png"
-        img.save(png_path)
-        result["image_png"] = str(png_path)
-        result["variant"] = potion_variant
+    return result
 
-    elif item_type == "torch":
-        project = build_animated_torch_project(size)
-        ase_path = out_dir / f"{name}.aseprite"
-        project.save(ase_path)
-        result["aseprite_project"] = str(ase_path)
-        if export_gif:
-            gif_path = out_dir / f"{name}.gif"
-            export_animated_gif(project, gif_path, scale=4)
-            result["preview_gif"] = str(gif_path)
 
-    elif item_type == "coin":
-        project = build_animated_coin_project(size)
-        ase_path = out_dir / f"{name}.aseprite"
-        project.save(ase_path)
-        result["aseprite_project"] = str(ase_path)
-        if export_gif:
-            gif_path = out_dir / f"{name}.gif"
-            export_animated_gif(project, gif_path, scale=4)
-            result["preview_gif"] = str(gif_path)
+@mcp.tool()
+def create_spell_effect(
+    spell_type: str = "radiant_sunbolt",
+    name: str = "spell_fx",
+    category: str = "projectile",  # "projectile", "impact", "aoe_rune", "shield_aura"
+    size: int = 32,
+    export_gif: bool = True,
+    export_sheet: bool = True,
+    export_godot: bool = True,
+    output_dir: Optional[str] = None,
+) -> Dict:
+    """
+    Generates procedural pixel art magic spells, projectiles, impacts, AoE runes, and auras.
+    Implements Saint11 VFX principles: concentric luminance ramps, non-linear timing, negative-space breakup.
+    Supported types:
+      - Projectiles (category='projectile'): radiant_sunbolt, void_orb, arcane_fireball, frost_lance
+      - Impacts & Explosions (category='impact'): radiant_burst, void_implosion, slash_hitspark, fire_explosion
+      - AoE Ground Runes (category='aoe_rune'): sanctuary_circle, abyssal_rift
+      - Auras & Shields (category='shield_aura'): holy_barrier, shadow_shroud
+    Exports .aseprite project, animated GIF, sprite sheet texture & JSON, and Godot 4 SpriteFrames (.tres).
+    """
+    out_dir = safe_resolve_output_dir(output_dir)
 
+    project = None
+    if category == "projectile" or spell_type in ("radiant_sunbolt", "void_orb", "arcane_fireball", "frost_lance"):
+        project = build_animated_projectile(spell_type=spell_type, size=size)
+    elif category == "impact" or spell_type in ("radiant_burst", "void_implosion", "slash_hitspark", "fire_explosion"):
+        project = build_animated_impact(impact_type=spell_type, size=size)
+    elif category == "aoe_rune" or spell_type in ("sanctuary_circle", "abyssal_rift"):
+        project = build_animated_aoe_rune(rune_type=spell_type, size=size)
+    elif category == "shield_aura" or spell_type in ("holy_barrier", "shadow_shroud"):
+        project = build_animated_shield_aura(aura_type=spell_type, size=size)
     else:
-        raise ValueError(f"Unknown item_type '{item_type}'. Supported: sword, potion, torch, coin")
+        # Default to projectile
+        project = build_animated_projectile(spell_type=spell_type, size=size)
+
+    ase_path = out_dir / f"{name}.aseprite"
+    project.save(ase_path)
+
+    result = {
+        "spell_type": spell_type,
+        "category": category,
+        "size": f"{size}x{size}",
+        "aseprite_project": str(ase_path),
+        "frame_count": len(project.sprite.frames),
+    }
+
+    sheet_res = None
+    if export_sheet:
+        sheet_png = out_dir / f"{name}_sheet.png"
+        sheet_json = out_dir / f"{name}_sheet.json"
+        sheet_res = export_sprite_sheet_native(project, sheet_png, sheet_json)
+        result["sheet_png"] = str(sheet_png)
+        result["sheet_json"] = str(sheet_json)
+
+    if export_gif:
+        gif_path = out_dir / f"{name}.gif"
+        export_animated_gif(project, gif_path, scale=4)
+        result["preview_gif"] = str(gif_path)
+
+    if export_godot:
+        godot_tres = out_dir / f"{name}.tres"
+        sheet_tex = f"res://{name}_sheet.png" if export_sheet else f"res://{name}.png"
+        export_godot_spriteframes(
+            project=project,
+            sheet_texture_res_path=sheet_tex,
+            output_tres_path=godot_tres,
+            frame_rects=sheet_res["frame_rects"] if sheet_res else None,
+            sheet_size=sheet_res["sheet_size"] if sheet_res else None,
+            fps=10.0,
+        )
+        result["godot_tres"] = str(godot_tres)
 
     return result
 
@@ -475,9 +751,34 @@ def live_create_canvas(width: int = 16, height: int = 16, color_mode: str = "rgb
 # -----------------------------------------------------------------------------
 # Learning Layer & Skill Builder Production Tools
 # -----------------------------------------------------------------------------
-from libresprite_game_mcp.core.orchestrator import ProductionOrchestrator
 
-orchestrator = ProductionOrchestrator()
+@mcp.tool()
+def generate_character(
+    character_id: str = "hero",
+    name: Optional[str] = None,
+    width: int = 16,
+    height: int = 16,
+    archetype: Optional[str] = None,
+    palette_name: str = "db16",
+    art_profile: str = "DefaultGame",
+    project_id: str = "default",
+    output_dir: Optional[str] = None,
+) -> Dict:
+    """
+    Generates an animated character directly through the ProductionOrchestrator and Learning Layer,
+    binding Art Bible guidance, dispatching to native 16x16 or 32x32 generators, and logging experience telemetry.
+    """
+    out_dir = safe_resolve_output_dir(output_dir)
+    return orchestrator.generate_character(
+        character_id=character_id,
+        name=name,
+        size=(width, height),
+        archetype=archetype,
+        palette_name=palette_name,
+        art_profile=art_profile,
+        workspace=out_dir,
+        project_id=project_id,
+    )
 
 
 @mcp.tool()

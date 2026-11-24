@@ -40,7 +40,7 @@ def test_native_32x32_dimensions_and_layers():
         for lname, img in layers.items():
             assert img.size == (32, 32), f"Layer {lname} for {arch} has incorrect size {img.size}"
             # Verify alpha hygiene (only 0 or 255)
-            alphas = set(img.getchannel("A").getdata())
+            alphas = set(img.getchannel("A").tobytes())
             invalid_alphas = {a for a in alphas if a not in (0, 255)}
             assert len(invalid_alphas) == 0, f"Layer {lname} for {arch} has semi-transparent alpha: {invalid_alphas}"
 

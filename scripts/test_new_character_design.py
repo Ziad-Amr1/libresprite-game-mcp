@@ -21,6 +21,7 @@ def adjust_color(color: RGBA, factor: float) -> RGBA:
     return (max(0, min(255, nr)), max(0, min(255, ng)), max(0, min(255, nb)), 255)
 
 class TestStyle:
+    __test__ = False
     def __init__(self, **kwargs):
         self.skin = hex_to_rgba(kwargs.get("skin", "#d2aa99"))
         self.skin_shadow = hex_to_rgba(kwargs.get("skin_shadow", "#854c30"))

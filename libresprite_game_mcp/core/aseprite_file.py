@@ -26,6 +26,7 @@ class AsepriteProject:
         self._initial_layer_renamed = False
         self.layers: Dict[str, aseprite.Layer] = {self.sprite.layers[0].name: self.sprite.layers[0]}
         self.tags: Dict[str, Tuple[int, int]] = {}
+        self.metadata: Dict[str, Any] = {}
 
     @classmethod
     def load(cls, file_path: Union[str, Path]) -> "AsepriteProject":
@@ -123,8 +124,18 @@ class AsepriteProject:
         self.sprite.add_tag(name, from_frame, to_frame)
         self.tags[name] = (from_frame, to_frame)
 
-    def get_frame_image(self, frame_idx: int = 0) -> Image.Image:
-        """Renders and returns a composited Pillow Image for the given frame."""
+    def get_frame_image(self, frame_idx: int = 0, layer_name: Optional[str] = None) -> Image.Image:
+        """Renders and returns a Pillow Image for the given frame (optionally isolated to layer_name)."""
+        if layer_name and layer_name in self.layers:
+            layer = self.layers[layer_name]
+            frame = self.sprite.frames[frame_idx]
+            try:
+                cel = frame[layer]
+                if cel and hasattr(cel, "pixels") and cel.pixels:
+                    return Image.frombytes("RGBA", (cel.pixels.width, cel.pixels.height), bytes(cel.pixels.data))
+            except KeyError:
+                pass
+            return Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
         return self.sprite.image(frame_idx)
 
     def get_all_frame_images(self) -> List[Image.Image]:

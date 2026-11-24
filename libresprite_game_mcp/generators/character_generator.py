@@ -679,6 +679,160 @@ def generate_character_frame(
     }
 
 
+def apply_character_guidance(
+    project: AsepriteProject,
+    guidance: Optional[Dict[str, Any]],
+    resolution: Tuple[int, int] = (16, 16),
+    effective_palette: str = "db16",
+    user_parameters: Optional[Dict[str, Any]] = None,
+) -> Tuple[List[str], List[str]]:
+    """
+    Applies typed Learning Layer guidance rules to an AsepriteProject.
+    - Selectively outlines interior seams (REF-OUT-001) without overriding user parameters.
+    - Purges isolated 1-pixel orphan noise and clusters tones (REF-PIX-001).
+    - Enforces palette harmony and clamps to palette constraints (REF-PAL-001).
+    - Scopes motion dynamics to locomotion animations and skips stationary states (REF-ANIM-002).
+    - Scopes respiration subtlety to idle animations (REF-ANIM-001).
+    - Tracks which rules were consumed and which were ignored.
+    """
+    if not guidance:
+        project.metadata["guidance_applied"] = []
+        project.metadata["guidance_rules_consumed"] = []
+        project.metadata["guidance_rules_ignored"] = []
+        return [], []
+
+    applicable_rules = list(guidance.get("applicable_rules", []))
+    consumed: List[str] = []
+    ignored: List[str] = []
+
+    outline_recs = guidance.get("outline_recommendations", {})
+    anim_recs = guidance.get("animation_requirements", {})
+    pal_constraints = guidance.get("palette_constraints", [])
+    user_params = user_parameters or {}
+
+    tag_names = {t.name for t in project.sprite.tags}
+    has_locomotion = any(t in tag_names for t in ("move", "walk", "run"))
+    has_idle = "idle" in tag_names
+
+    # Evaluate rule consumption vs ignore
+    for rule in applicable_rules:
+        r_lower = rule.lower()
+        if "locomotion" in r_lower or "weight transfer" in r_lower:
+            if not has_locomotion:
+                ignored.append(rule)
+                continue
+            consumed.append(rule)
+        elif "idle" in r_lower or "respiration" in r_lower:
+            if not has_idle:
+                ignored.append(rule)
+                continue
+            consumed.append(rule)
+        elif "dithering" in r_lower:
+            if resolution[0] > 32 or resolution[1] > 32:
+                ignored.append(rule)
+                continue
+            consumed.append(rule)
+        elif "db16" in r_lower or "palette discipline" in r_lower:
+            if pal_constraints and effective_palette.lower() not in [p.lower() for p in pal_constraints]:
+                ignored.append(rule)
+                continue
+            consumed.append(rule)
+        elif "prop" in r_lower or "item" in r_lower or "tileset" in r_lower:
+            ignored.append(rule)
+        else:
+            consumed.append(rule)
+
+    user_outline_mode = user_params.get("outline_mode")
+    apply_sel_out = (user_outline_mode != "none") and (
+        outline_recs.get("outline_mode") == "colored"
+        or outline_recs.get("interior_seams") == "local_shadow_ramp"
+        or outline_recs.get("pure_black_interior_allowed") is False
+    )
+
+    pal = None
+    if effective_palette:
+        try:
+            pal = GamePalette.from_name(effective_palette)
+        except Exception:
+            pass
+
+    for f_idx in range(len(project.sprite.frames)):
+        for layer_name in list(project.layers.keys()):
+            if layer_name.lower() == "shadow":
+                continue
+
+            img = project.get_frame_image(f_idx, layer_name)
+            if not img or img.getbbox() is None:
+                continue
+
+            rgba = img.convert("RGBA")
+            pixels = rgba.load()
+            w, h = rgba.size
+            modified = False
+
+            # 1. Sel-out on interior seams (REF-OUT-001)
+            if apply_sel_out and layer_name in ("Clothes", "Gear", "Body"):
+                dark_seam_colors = {(20, 12, 28, 255), (0, 0, 0, 255), (34, 32, 52, 255)}
+                for y in range(h):
+                    for x in range(w):
+                        px = pixels[x, y]
+                        if px in dark_seam_colors:
+                            colored_neighbors = []
+                            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                                nx, ny = x + dx, y + dy
+                                if 0 <= nx < w and 0 <= ny < h:
+                                    n_px = pixels[nx, ny]
+                                    if n_px[3] > 0 and n_px not in dark_seam_colors:
+                                        colored_neighbors.append(n_px)
+                            if len(colored_neighbors) >= 3:
+                                dominant = colored_neighbors[0]
+                                softened = (
+                                    max(10, int(dominant[0] * 0.60)),
+                                    max(10, int(dominant[1] * 0.60)),
+                                    max(10, int(dominant[2] * 0.60)),
+                                    255,
+                                )
+                                pixels[x, y] = softened
+                                modified = True
+
+            # 2. Pixel clustering & orphan elimination (REF-PIX-001)
+            if layer_name in ("Clothes", "Gear", "Body"):
+                for y in range(h):
+                    for x in range(w):
+                        px = pixels[x, y]
+                        if px[3] == 0:
+                            continue
+                        same_count = 0
+                        other_opaque = []
+                        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                            nx, ny = x + dx, y + dy
+                            if 0 <= nx < w and 0 <= ny < h:
+                                n_px = pixels[nx, ny]
+                                if n_px == px:
+                                    same_count += 1
+                                elif n_px[3] > 0:
+                                    other_opaque.append(n_px)
+                        if same_count == 0 and len(other_opaque) >= 3:
+                            pixels[x, y] = other_opaque[0]
+                            modified = True
+
+            # 3. Palette quantization (REF-PAL-001)
+            if pal:
+                canvas = PixelCanvas.from_image(rgba)
+                canvas.quantize_to_palette(pal)
+                rgba = canvas.image
+                modified = True
+
+            if modified:
+                project.set_frame_image(f_idx, layer_name, rgba)
+
+    project.metadata["guidance_applied"] = applicable_rules
+    project.metadata["guidance_rules_consumed"] = consumed
+    project.metadata["guidance_rules_ignored"] = ignored
+
+    return consumed, ignored
+
+
 def build_animated_character_project(
     width: int = 16,
     height: int = 16,
@@ -760,5 +914,19 @@ def build_animated_character_project(
             frame_cursor += 1
 
         project.add_tag(anim_name, anim_start, frame_cursor - 1)
+
+    if guidance:
+        user_params = {"outline_mode": getattr(blueprint, "outline_mode", None)} if blueprint else {}
+        apply_character_guidance(
+            project=project,
+            guidance=guidance,
+            resolution=(width, height),
+            effective_palette=effective_palette,
+            user_parameters=user_params,
+        )
+    else:
+        project.metadata["guidance_applied"] = []
+        project.metadata["guidance_rules_consumed"] = []
+        project.metadata["guidance_rules_ignored"] = []
 
     return project

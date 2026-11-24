@@ -380,6 +380,185 @@ def get_pixel_art_knowledge_rules() -> List[KnowledgeRecord]:
                 validation_status="COMMUNITY_CONSENSUS",
             ),
         ),
+
+        # 11. Concentric High-Luminance Core & Additive Glow Ramp (Saint11)
+        KnowledgeRecord(
+            project_id=None,
+            knowledge_type=KnowledgeType.EXTERNAL_REFERENCE,
+            evidence_status=EvidenceStatus.COMMUNITY_CONSENSUS,
+            category=KnowledgeCategory.VFX_SPELLS,
+            rule_name="Concentric High-Luminance Core & Additive Glow Ramp",
+            description=(
+                "Pixel art energy, fire, lightning, and magic cannot rely on true additive blending. "
+                "Convey intense magical luminance via a strict concentric 4-tier color ramp: "
+                "Tier 1 (Core): Pure white (#ffffff) at center of mass/ignition. "
+                "Tier 2 (Spectral Bloom): Highly saturated primary tint (bright yellow, electric cyan, radiant violet). "
+                "Tier 3 (Chromatic Body): Medium body color (orange, cobalt, deep purple). "
+                "Tier 4 (Ambient Falloff): Dark contextual rim outline; never use pure black outlines on emissive energy."
+            ),
+            conditions={"task_category": "spell", "effect_type": "emissive"},
+            recommendations={
+                "core_color": "#ffffff",
+                "min_color_tiers": 4,
+                "allow_pure_black_outline": False,
+                "concentric_ramp": True,
+            },
+            confidence_score=None,
+            provenance=ReferenceProvenance(
+                source_title="Pixel Art FX and Magic Tutorials",
+                author="Pedro Medeiros (Saint11)",
+                source_url="https://blog.studiominiboss.com/pixelart",
+                access_date="2026-11-24",
+                extracted_principle="Magical energy requires a white-hot core surrounded by saturated rings; avoid black outlines around glowing effects.",
+                interpretation="Use color temperature and stepped luminance bands instead of alpha gradients to simulate emissive glow.",
+                applicable_asset_categories=["spell", "vfx", "projectile"],
+                applicable_resolutions=["16x16", "24x24", "32x32", "48x48", "64x64"],
+                applicable_styles=["pixel_art", "animated_vfx"],
+                known_limitations=["Dark void or shadow magic reverses luminance, using an obsidian core with bright outer corona."],
+                validation_status="COMMUNITY_CONSENSUS",
+            ),
+        ),
+
+        # 12. Non-Linear FX Timing & Snap-Decay Kinetic Curve (Saint11)
+        KnowledgeRecord(
+            project_id=None,
+            knowledge_type=KnowledgeType.EXTERNAL_REFERENCE,
+            evidence_status=EvidenceStatus.COMMUNITY_CONSENSUS,
+            category=KnowledgeCategory.ANIMATION_TIMING,
+            rule_name="Non-Linear FX Timing & Snap-Decay Kinetic Curve",
+            description=(
+                "Explosions, slashes, impacts, and spellbursts must avoid linear uniform frame durations. "
+                "Apply the snap-decay curve: "
+                "1. Anticipation/Ignition: Fast 1-frame charge (60-80ms). "
+                "2. Snap Apex/Impact Flash: Immediate maximum expansion with white impact frame (50-70ms). "
+                "3. Expansion/Shockwave: Expanding ring or hollow burst (80-100ms). "
+                "4. Dissipation & Decay: Slower trailing decay with fragmenting embers (100-130ms)."
+            ),
+            conditions={"task_category": "vfx", "animation_type": "burst"},
+            recommendations={
+                "timing_curve": "fast_attack_slow_decay",
+                "include_impact_flash_frame": True,
+                "climax_frame_index": 1,
+                "decay_duration_multiplier": 1.5,
+            },
+            confidence_score=None,
+            provenance=ReferenceProvenance(
+                source_title="Animation Timing in Special Effects",
+                author="Pedro Medeiros (Saint11)",
+                source_url="https://blog.studiominiboss.com/pixelart",
+                access_date="2026-11-24",
+                extracted_principle="Impacts and bursts should reach their peak quickly (frame 1 or 2), then spend several frames decaying and dispersing.",
+                interpretation="Linear frame timing makes magic feel floaty and weak. Explosive snap followed by lingering dissipation gives attacks punch.",
+                applicable_asset_categories=["vfx", "spell", "impact"],
+                applicable_resolutions=["16x16", "24x24", "32x32", "48x48"],
+                applicable_styles=["animated_vfx"],
+                known_limitations=["Continuous looping beams or gentle weather effects use uniform frame timing."],
+                validation_status="COMMUNITY_CONSENSUS",
+            ),
+        ),
+
+        # 13. Volume Breakup, Smoke Holes & Dissipating Negative Space (Saint11)
+        KnowledgeRecord(
+            project_id=None,
+            knowledge_type=KnowledgeType.EXTERNAL_REFERENCE,
+            evidence_status=EvidenceStatus.COMMUNITY_CONSENSUS,
+            category=KnowledgeCategory.VFX_SPELLS,
+            rule_name="Volume Breakup, Smoke Holes & Dissipating Negative Space",
+            description=(
+                "When spells and explosions dissipate, they must NOT simply shrink uniformly. "
+                "As the shockwave expands, carve interior negative space ('smoke holes') into the core volume, "
+                "breaking the solid shape into 3-5 distinct flying sub-clusters and fading particle embers."
+            ),
+            conditions={"task_category": "vfx", "effect_state": "dissipation"},
+            recommendations={
+                "carve_negative_space": True,
+                "fragment_into_clusters": True,
+                "avoid_uniform_scaling": True,
+            },
+            confidence_score=None,
+            provenance=ReferenceProvenance(
+                source_title="Explosion and Smoke Dissipation Guide",
+                author="Pedro Medeiros (Saint11)",
+                source_url="https://blog.studiominiboss.com/pixelart",
+                access_date="2026-11-24",
+                extracted_principle="Explosions hollow out in the center as they expand, breaking into drifting clumps of smoke rather than scaling down.",
+                interpretation="Hollow out the center on frame 3 and break the perimeter into asymmetrical chunks to simulate fluid dynamics.",
+                applicable_asset_categories=["vfx", "explosion", "magic_burst"],
+                applicable_resolutions=["16x16", "24x24", "32x32", "48x48", "64x64"],
+                applicable_styles=["animated_vfx"],
+                known_limitations=["Solid crystallizing effects (e.g. ice prison) shatter into shards rather than hollowing smoke."],
+                validation_status="COMMUNITY_CONSENSUS",
+            ),
+        ),
+
+        # 14. Projectile Aerodynamics & Stepped Embers Trail (Saint11)
+        KnowledgeRecord(
+            project_id=None,
+            knowledge_type=KnowledgeType.EXTERNAL_REFERENCE,
+            evidence_status=EvidenceStatus.COMMUNITY_CONSENSUS,
+            category=KnowledgeCategory.VFX_SPELLS,
+            rule_name="Projectile Aerodynamics & Stepped Embers Trail",
+            description=(
+                "Moving magical projectiles (missiles, fireballs, energy bolts) must convey vector velocity: "
+                "1. Leading Head: Rounded, high-luminance energy cap facing direction of motion. "
+                "2. Body: Tapering teardrop aerodynamic stream with cluster shading. "
+                "3. Trailing Tail: Stepped, detached 1-2px particle motes drifting backwards with decreasing size and opacity."
+            ),
+            conditions={"task_category": "spell", "effect_type": "projectile"},
+            recommendations={
+                "aerodynamic_silhouette": "teardrop_taper",
+                "leading_edge_highlight": True,
+                "trailing_particle_motes": True,
+            },
+            confidence_score=None,
+            provenance=ReferenceProvenance(
+                source_title="Designing Projectiles and Missiles in Pixel Art",
+                author="Pedro Medeiros (Saint11)",
+                source_url="https://blog.studiominiboss.com/pixelart",
+                access_date="2026-11-24",
+                extracted_principle="Projectiles need a distinct front (highest contrast) and trailing sparks behind to indicate direction and speed.",
+                interpretation="Place the brightest highlights on the front nose; let tail flickers lag behind across alternating frames.",
+                applicable_asset_categories=["spell", "projectile"],
+                applicable_resolutions=["16x16", "24x24", "32x32"],
+                applicable_styles=["animated_vfx"],
+                known_limitations=["Spherical floating orbs (like slow homing wisp mines) do not require teardrop elongation."],
+                validation_status="COMMUNITY_CONSENSUS",
+            ),
+        ),
+
+        # 15. Ground Glyph Perspective & Vertical Energy Emission (Saint11)
+        KnowledgeRecord(
+            project_id=None,
+            knowledge_type=KnowledgeType.EXTERNAL_REFERENCE,
+            evidence_status=EvidenceStatus.COMMUNITY_CONSENSUS,
+            category=KnowledgeCategory.VFX_SPELLS,
+            rule_name="Ground Glyph Perspective & Vertical Energy Emission",
+            description=(
+                "Area of Effect (AoE) summon circles, healing wells, and sanctuary runes must anchor to the 2D world floor "
+                "using a 2:1 aspect ratio ground ellipse. Runic symbols inside the ellipse must adhere to flattened perspective. "
+                "Magical emissions (light pillars, rising sparkles, ascending smoke) erupt vertically perpendicular to the ground plane."
+            ),
+            conditions={"task_category": "spell", "effect_type": "aoe_ground"},
+            recommendations={
+                "ground_ellipse_aspect_ratio": "2:1",
+                "vertical_beam_emission": True,
+                "ascending_sparkle_particles": True,
+            },
+            confidence_score=None,
+            provenance=ReferenceProvenance(
+                source_title="Magic Circles and Ground Runes",
+                author="Pedro Medeiros (Saint11)",
+                source_url="https://blog.studiominiboss.com/pixelart",
+                access_date="2026-11-24",
+                extracted_principle="Ground magic must be drawn flattened in perspective (oval) while the magic beams project straight upwards.",
+                interpretation="Draw base magic ring as a 2:1 horizontal oval on the ground; animate vertical light pillars and rising motes above it.",
+                applicable_asset_categories=["spell", "aoe", "vfx"],
+                applicable_resolutions=["32x32", "48x48", "64x64"],
+                applicable_styles=["animated_vfx"],
+                known_limitations=["Wall-mounted runes or ceiling traps orient to the respective surface normal."],
+                validation_status="COMMUNITY_CONSENSUS",
+            ),
+        ),
     ]
 
 
@@ -388,7 +567,7 @@ def seed_art_bible_knowledge(
     overwrite: bool = False,
 ) -> List[KnowledgeRecord]:
     """
-    Idempotently seeds the 10 universal Art Bible external reference rules into the provided repository.
+    Idempotently seeds the 15 universal Art Bible external reference rules (Characters, Environments, and Spells/VFX) into the provided repository.
     If a rule with the same rule_name already exists and overwrite is False, it preserves the existing rule.
     Returns the list of seeded/existing KnowledgeRecords.
     """
@@ -399,10 +578,13 @@ def seed_art_bible_knowledge(
     existing_rules = {r.rule_name: r for r in repo.query_knowledge(project_id=None, limit=200)}
 
     for rule in rules:
-        if rule.rule_name in existing_rules and not overwrite:
-            seeded_records.append(existing_rules[rule.rule_name])
-        else:
-            saved = repo.save_knowledge(rule)
-            seeded_records.append(saved)
+        if rule.rule_name in existing_rules:
+            if not overwrite:
+                seeded_records.append(existing_rules[rule.rule_name])
+                continue
+            else:
+                rule.id = existing_rules[rule.rule_name].id
+        saved = repo.save_knowledge(rule)
+        seeded_records.append(saved)
 
     return seeded_records

@@ -27,6 +27,8 @@ htmlcov/
 test_fixtures_workspace/
 *.tmp
 *test_output_tmp*
+test_tmp/
+test_platform.png
 
 # Session tokens & temporary bridge test flags
 *.session_token

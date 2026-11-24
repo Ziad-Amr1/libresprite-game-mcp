@@ -23,8 +23,21 @@ from libresprite_game_mcp.exporters.game_export import (
     export_sprite_sheet_native,
 )
 from libresprite_game_mcp.generators.item_generator import (
-    generate_potion_icon,
     generate_sword_icon,
+    generate_weapon_icon,
+    generate_armor_icon,
+    generate_potion_icon,
+    generate_consumable_icon,
+    build_animated_torch_project,
+    build_animated_coin_project,
+    build_animated_radiant_lantern,
+    build_animated_shadow_orb,
+    build_animated_crystal_shard,
+    build_animated_heart_pickup,
+    build_animated_key_pickup,
+    build_animated_gem_drop,
+    build_animated_chest_project,
+    build_animated_pot_break_project,
 )
 from libresprite_game_mcp.models.schemas import CharacterBlueprint
 from libresprite_game_mcp.qa.validator import AssetValidator
@@ -122,6 +135,8 @@ def _prod_generate_character(params: Dict[str, Any], workspace: Path) -> Dict[st
         frames[0].save(preview_path)
 
     applied_rules = guidance.get("applicable_rules", []) if guidance else []
+    rules_consumed = getattr(project, "metadata", {}).get("guidance_rules_consumed", [])
+    rules_ignored = getattr(project, "metadata", {}).get("guidance_rules_ignored", [])
 
     return {
         "project_path": str(target_path),
@@ -133,6 +148,8 @@ def _prod_generate_character(params: Dict[str, Any], workspace: Path) -> Dict[st
         "archetype": bp.archetype,
         "palette_name": palette_name,
         "guidance_applied": applied_rules,
+        "guidance_rules_consumed": rules_consumed,
+        "guidance_rules_ignored": rules_ignored,
     }
 
 
@@ -189,33 +206,129 @@ def _prod_generate_item(params: Dict[str, Any], workspace: Path) -> Dict[str, An
     item_id = str(params.get("item_id", "item"))
     category = str(params.get("category", "sword"))
     size = int(params.get("size", 16))
+    variant = params.get("variant")
+    export_gif = bool(params.get("export_gif", True))
+    export_godot = bool(params.get("export_godot", False))
 
-    if category == "potion":
-        potion_type = str(params.get("potion_type", "health"))
-        img = generate_potion_icon(size=size, potion_type=potion_type)
+    project: Optional[AsepriteProject] = None
+    img: Optional[Image.Image] = None
+
+    if category in ("sword", "weapon"):
+        w_type = str(variant or ("radiant_sword" if category == "weapon" else "iron_broadsword"))
+        img = generate_weapon_icon(w_type, size=size)
         target_path = workspace / f"{item_id}.png"
         img.save(target_path)
+
+    elif category in ("shield", "armor"):
+        a_type = str(variant or "radiant_shield")
+        img = generate_armor_icon(a_type, size=size)
+        target_path = workspace / f"{item_id}.png"
+        img.save(target_path)
+
+    elif category in ("potion", "consumable"):
+        p_type = str(variant or params.get("potion_type", "health"))
+        if category == "potion":
+            img = generate_potion_icon(size=size, potion_type=p_type)
+        else:
+            img = generate_consumable_icon(p_type, size=size)
+        target_path = workspace / f"{item_id}.png"
+        img.save(target_path)
+
+    elif category in ("shard", "crystal"):
+        elem = str(variant or "radiant")
+        project = build_animated_crystal_shard(size=size, element=elem)
+        target_path = workspace / f"{item_id}.aseprite"
+        project.save(target_path)
+
+    elif category == "heart":
+        project = build_animated_heart_pickup(size=size)
+        target_path = workspace / f"{item_id}.aseprite"
+        project.save(target_path)
+
+    elif category == "key":
+        k_type = str(variant or "golden")
+        project = build_animated_key_pickup(size=size, key_type=k_type)
+        target_path = workspace / f"{item_id}.aseprite"
+        project.save(target_path)
+
+    elif category == "gem":
+        g_type = str(variant or "ruby")
+        project = build_animated_gem_drop(size=size, gem_type=g_type)
+        target_path = workspace / f"{item_id}.aseprite"
+        project.save(target_path)
+
+    elif category == "coin":
+        c_var = str(variant or "gold")
+        project = build_animated_coin_project(size=size, variant=c_var)
+        target_path = workspace / f"{item_id}.aseprite"
+        project.save(target_path)
+
+    elif category == "chest":
+        ch_type = str(variant or "wood_gold")
+        project = build_animated_chest_project(size=size, chest_type=ch_type)
+        target_path = workspace / f"{item_id}.aseprite"
+        project.save(target_path)
+
+    elif category == "pot":
+        pot_type = str(variant or "terracotta")
+        project = build_animated_pot_break_project(size=size, pot_type=pot_type)
+        target_path = workspace / f"{item_id}.aseprite"
+        project.save(target_path)
+
     elif category == "lantern":
-        from libresprite_game_mcp.generators.item_generator import build_animated_radiant_lantern
-        proj = build_animated_radiant_lantern(size=size)
+        project = build_animated_radiant_lantern(size=size)
         target_path = workspace / f"{item_id}.aseprite"
-        proj.save(target_path)
+        project.save(target_path)
+
     elif category == "shadow_orb":
-        from libresprite_game_mcp.generators.item_generator import build_animated_shadow_orb
-        proj = build_animated_shadow_orb(size=size)
+        project = build_animated_shadow_orb(size=size)
         target_path = workspace / f"{item_id}.aseprite"
-        proj.save(target_path)
+        project.save(target_path)
+
+    elif category == "torch":
+        project = build_animated_torch_project(size=size)
+        target_path = workspace / f"{item_id}.aseprite"
+        project.save(target_path)
+
     else:
         img = generate_sword_icon(size=size)
         target_path = workspace / f"{item_id}.png"
         img.save(target_path)
 
-    return {
+    result = {
         "project_path": str(target_path),
         "item_id": item_id,
+        "category": category,
         "width": size,
         "height": size,
     }
+
+    if project is not None:
+        sheet_path = workspace / f"{item_id}_sheet.png"
+        sheet_json = workspace / f"{item_id}_sheet.json"
+        sheet_res = export_sprite_sheet_native(project, sheet_path, sheet_json)
+        result["sheet_path"] = str(sheet_path)
+        result["sheet_json"] = str(sheet_json)
+
+        if export_gif:
+            from libresprite_game_mcp.exporters.game_export import export_animated_gif
+            gif_path = workspace / f"{item_id}.gif"
+            export_animated_gif(project, gif_path, scale=4)
+            result["preview_gif"] = str(gif_path)
+
+        if export_godot:
+            godot_tres = workspace / f"{item_id}.tres"
+            export_godot_spriteframes(
+                project=project,
+                sheet_texture_res_path=f"res://{sheet_path.name}",
+                output_tres_path=godot_tres,
+                frame_rects=sheet_res["frame_rects"],
+                sheet_size=sheet_res["sheet_size"],
+                fps=8.0,
+            )
+            result["godot_tres"] = str(godot_tres)
+
+    return result
 
 
 def _prod_generate_title(params: Dict[str, Any], workspace: Path) -> Dict[str, Any]:
@@ -238,6 +351,70 @@ def _prod_generate_title(params: Dict[str, Any], workspace: Path) -> Dict[str, A
         file_prefix=title_id,
     )
     result["project_path"] = result["aseprite_path"]
+    return result
+
+
+def _prod_generate_spell(params: Dict[str, Any], workspace: Path) -> Dict[str, Any]:
+    spell_id = str(params.get("spell_id", "spell_fx"))
+    category = str(params.get("category", "projectile"))
+    spell_type = str(params.get("spell_type", "radiant_sunbolt"))
+    size = int(params.get("size", 32))
+    export_gif = bool(params.get("export_gif", True))
+    export_godot = bool(params.get("export_godot", True))
+
+    from libresprite_game_mcp.generators.vfx_generator import (
+        build_animated_projectile,
+        build_animated_impact,
+        build_animated_aoe_rune,
+        build_animated_shield_aura,
+    )
+
+    if category == "projectile" or spell_type in ("radiant_sunbolt", "void_orb", "arcane_fireball", "frost_lance"):
+        project = build_animated_projectile(spell_type=spell_type, size=size)
+    elif category == "impact" or spell_type in ("radiant_burst", "void_implosion", "slash_hitspark", "fire_explosion"):
+        project = build_animated_impact(impact_type=spell_type, size=size)
+    elif category == "aoe_rune" or spell_type in ("sanctuary_circle", "abyssal_rift"):
+        project = build_animated_aoe_rune(rune_type=spell_type, size=size)
+    elif category == "shield_aura" or spell_type in ("holy_barrier", "shadow_shroud"):
+        project = build_animated_shield_aura(aura_type=spell_type, size=size)
+    else:
+        project = build_animated_projectile(spell_type=spell_type, size=size)
+
+    target_path = workspace / f"{spell_id}.aseprite"
+    project.save(target_path)
+
+    sheet_png = workspace / f"{spell_id}_sheet.png"
+    sheet_json = workspace / f"{spell_id}_sheet.json"
+    sheet_res = export_sprite_sheet_native(project, sheet_png, sheet_json)
+
+    result = {
+        "project_path": str(target_path),
+        "spell_id": spell_id,
+        "spell_type": spell_type,
+        "category": category,
+        "width": size,
+        "height": size,
+        "sheet_path": str(sheet_png),
+    }
+
+    if export_gif:
+        from libresprite_game_mcp.exporters.game_export import export_animated_gif
+        gif_path = workspace / f"{spell_id}.gif"
+        export_animated_gif(project, gif_path, scale=4)
+        result["preview_gif"] = str(gif_path)
+
+    if export_godot:
+        godot_tres = workspace / f"{spell_id}.tres"
+        export_godot_spriteframes(
+            project=project,
+            sheet_texture_res_path=f"res://{sheet_png.name}",
+            output_tres_path=godot_tres,
+            frame_rects=sheet_res["frame_rects"],
+            sheet_size=sheet_res["sheet_size"],
+            fps=10.0,
+        )
+        result["godot_tres"] = str(godot_tres)
+
     return result
 
 
@@ -429,6 +606,12 @@ class ProductionToolDispatcher(BaseToolDispatcher):
                 description="Generates retro pixel art game title and logo banner",
                 output_keys=["project_path", "png_path"],
             ),
+            "generate_spell": ToolContract(
+                name="generate_spell",
+                handler=_prod_generate_spell,
+                description="Generates procedural pixel art magic spells, projectiles, impacts, and auras",
+                output_keys=["project_path", "spell_id"],
+            ),
             "apply_outline": ToolContract(
                 name="apply_outline",
                 handler=_prod_apply_outline,
@@ -485,4 +668,6 @@ class MockToolDispatcher(BaseToolDispatcher):
             return {"sheet_png": "mock_sheet.png", "tres_file": "mock.tres", "exported": True}
         elif tool_name == "export_pixilart_project":
             return {"saved_path": "mock.pixil", "format": "pixil", "exported": True}
+        elif tool_name == "generate_spell":
+            return {"project_path": "mock_spell.aseprite", "spell_id": params.get("spell_id", "spell_fx"), "exported": True}
         return {"status": "ok", "qa_passed": True}

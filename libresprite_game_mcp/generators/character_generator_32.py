@@ -692,4 +692,19 @@ def build_animated_character_project_32(
 
         project.add_tag(anim_name, anim_start, frame_cursor - 1)
 
+    if guidance:
+        from libresprite_game_mcp.generators.character_generator import apply_character_guidance
+        user_params = {"outline_mode": getattr(blueprint, "outline_mode", None)} if blueprint else {}
+        apply_character_guidance(
+            project=project,
+            guidance=guidance,
+            resolution=(width, height),
+            effective_palette=effective_palette,
+            user_parameters=user_params,
+        )
+    else:
+        project.metadata["guidance_applied"] = []
+        project.metadata["guidance_rules_consumed"] = []
+        project.metadata["guidance_rules_ignored"] = []
+
     return project
