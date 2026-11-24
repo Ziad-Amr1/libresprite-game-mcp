@@ -27,9 +27,11 @@ from libresprite_game_mcp.core.palettes import (
 )
 from libresprite_game_mcp.core.aseprite_file import AsepriteProject
 from libresprite_game_mcp.core.cli_runner import LibreSpriteCLI
+from libresprite_game_mcp.core.security import workspace_policy
 from libresprite_game_mcp.generators.character_generator import (
     CharacterStyle,
     build_animated_character_project,
+    legacy_args_to_blueprint,
 )
 from libresprite_game_mcp.generators.tileset_generator import (
     build_autotile_3x3_sheet,
@@ -64,12 +66,9 @@ mcp = FastMCP(
 
 
 def safe_resolve_output_dir(output_dir: Optional[str] = None) -> Path:
-    """Safely resolves destination directory and blocks illegal path traversal."""
-    if not output_dir:
-        return get_default_assets_dir()
-    resolved = Path(output_dir).resolve()
-    resolved.mkdir(parents=True, exist_ok=True)
-    return resolved
+    """Safely resolves destination directory and strictly enforces workspace boundaries."""
+    target = output_dir if output_dir else get_default_assets_dir()
+    return workspace_policy.safe_resolve(target, allow_create_dir=True)
 
 
 @mcp.tool()
@@ -127,6 +126,80 @@ def list_game_palettes() -> Dict:
 
 
 @mcp.tool()
+def create_character_from_blueprint(
+    blueprint: Dict[str, Any],
+    profile: Optional[Dict[str, Any]] = None,
+    export_sheet: bool = True,
+    export_gif: bool = True,
+    export_godot: bool = False,
+    output_dir: Optional[str] = None,
+) -> Dict:
+    """
+    Creates an animated pixel art character driven by a structured CharacterBlueprint and ArtProfile.
+    Validates blueprint schema, renders custom animations/durations, and exports engine-ready assets.
+    """
+    # 1. Validate Blueprint with Pydantic
+    bp_model = CharacterBlueprint.model_validate(blueprint)
+    profile_model = ArtProfile.model_validate(profile) if profile else None
+
+    out_dir = safe_resolve_output_dir(output_dir)
+    palette_name = profile_model.palette_name if profile_model else "db16"
+
+    # 2. Build Aseprite Project
+    project = build_animated_character_project(
+        blueprint=bp_model,
+        profile=profile_model,
+        palette_name=palette_name,
+    )
+    ase_file = out_dir / f"{bp_model.character_id}.aseprite"
+    project.save(ase_file)
+
+    width, height = bp_model.size
+    result = {
+        "name": bp_model.name,
+        "character_id": bp_model.character_id,
+        "aseprite_project": str(ase_file),
+        "size": f"{width}x{height}",
+        "tags": [t.name for t in project.sprite.tags],
+        "layers": [l.name for l in project.sprite.layers],
+        "pivot": list(bp_model.pivot),
+    }
+
+    frame_rects = None
+    sheet_png = out_dir / f"{bp_model.character_id}_sheet.png"
+    sheet_json = out_dir / f"{bp_model.character_id}_sheet.json"
+
+    # Export Sprite Sheet (PNG + JSON)
+    if export_sheet:
+        meta = export_sprite_sheet_native(project, sheet_png, sheet_json, padding=1)
+        result["sheet_png"] = meta["sheet_path"]
+        result["sheet_json"] = meta["json_path"]
+        frame_rects = meta.get("frame_rects")
+
+    # Export Animated GIF preview
+    if export_gif:
+        gif_path = out_dir / f"{bp_model.character_id}_preview.gif"
+        export_animated_gif(project, gif_path, scale=4)
+        result["preview_gif"] = str(gif_path)
+
+    # Export Godot 4.x SpriteFrames with accurate AtlasTexture SubResources & frame duration factors
+    if export_godot:
+        godot_tres = out_dir / f"{bp_model.character_id}_spriteframes.tres"
+        res_tex_path = f"res://{sheet_png.name}" if "sheet_png" in result else "res://sheet.png"
+        export_godot_spriteframes(
+            project,
+            res_tex_path,
+            godot_tres,
+            frame_rects=frame_rects,
+            fps=profile_model.animation.default_fps if profile_model else 10.0,
+            sheet_size=meta["sheet_size"] if export_sheet else None,
+        )
+        result["godot_spriteframes"] = str(godot_tres)
+
+    return result
+
+
+@mcp.tool()
 def create_character_sprite(
     name: str = "hero",
     width: int = 16,
@@ -142,56 +215,30 @@ def create_character_sprite(
     output_dir: Optional[str] = None,
 ) -> Dict:
     """
-    Creates a multi-layered, multi-frame animated pixel art character.
-    Generates Idle, Walk, Attack, and Hurt animations with standard tags.
-    Saves an editable .aseprite project file and exports engine-ready sprite sheets.
+    Legacy adapter for character generation.
+    Converts arguments into a CharacterBlueprint and delegates to create_character_from_blueprint.
     """
-    out_dir = safe_resolve_output_dir(output_dir)
-
-    style = CharacterStyle(
-        skin=skin_color,
-        hair=hair_color,
-        shirt=shirt_color,
-        pants=pants_color,
+    blueprint = legacy_args_to_blueprint(
+        name=name,
+        width=width,
+        height=height,
+        shirt_color=shirt_color,
+        pants_color=pants_color,
+        hair_color=hair_color,
+        skin_color=skin_color,
     )
-
-    project = build_animated_character_project(width, height, style, palette_name)
-    ase_file = out_dir / f"{name}.aseprite"
-    project.save(ase_file)
-
-    result = {
-        "name": name,
-        "aseprite_project": str(ase_file),
-        "size": f"{width}x{height}",
-        "tags": ["idle", "walk", "attack", "hurt"],
-        "layers": [l.name for l in project.sprite.layers],
-    }
-
-    frame_rects = None
-    sheet_png = out_dir / f"{name}_sheet.png"
-    sheet_json = out_dir / f"{name}_sheet.json"
-
-    # Export Sprite Sheet (PNG + JSON)
-    if export_sheet:
-        meta = export_sprite_sheet_native(project, sheet_png, sheet_json, padding=1)
-        result["sheet_png"] = meta["sheet_path"]
-        result["sheet_json"] = meta["json_path"]
-        frame_rects = meta.get("frame_rects")
-
-    # Export Animated GIF preview
-    if export_gif:
-        gif_path = out_dir / f"{name}_preview.gif"
-        export_animated_gif(project, gif_path, scale=4)
-        result["preview_gif"] = str(gif_path)
-
-    # Export Godot 4.x SpriteFrames with accurate AtlasTexture SubResources
-    if export_godot:
-        godot_tres = out_dir / f"{name}_spriteframes.tres"
-        res_tex_path = f"res://{sheet_png.name}" if "sheet_png" in result else "res://sheet.png"
-        export_godot_spriteframes(project, res_tex_path, godot_tres, frame_rects=frame_rects, fps=10.0)
-        result["godot_spriteframes"] = str(godot_tres)
-
-    return result
+    profile = ArtProfile(
+        project_name="GameProject",
+        palette_name=palette_name,
+    )
+    return create_character_from_blueprint(
+        blueprint=blueprint.model_dump(),
+        profile=profile.model_dump(),
+        export_sheet=export_sheet,
+        export_gif=export_gif,
+        export_godot=export_godot,
+        output_dir=output_dir,
+    )
 
 
 @mcp.tool()
@@ -287,18 +334,26 @@ def validate_game_asset(
     palette_name: str = "db16",
     expected_width: Optional[int] = None,
     expected_height: Optional[int] = None,
+    anchor_pivot_x: float = 0.5,
+    anchor_pivot_y: float = 0.9,
+    allow_translucent: bool = False,
+    strict_alignment: bool = False,
 ) -> Dict:
     """
     Runs automated Art QA on a generated pixel art asset (PNG or .aseprite).
-    Verifies palette adherence, alpha hygiene, dimensions, and animation alignment.
+    Verifies palette adherence, alpha hygiene, dimensions, cluster noise, and anchor-relative animation alignment.
     """
-    p = Path(asset_path).resolve()
-    if not p.exists():
-        raise FileNotFoundError(f"Asset file not found: {p}")
+    p = workspace_policy.safe_resolve(asset_path, must_exist=True)
 
     palette = GamePalette.from_name(palette_name)
     expected_size = (expected_width, expected_height) if (expected_width and expected_height) else None
-    validator = AssetValidator(palette=palette, expected_size=expected_size)
+    validator = AssetValidator(
+        palette=palette,
+        expected_size=expected_size,
+        anchor_pivot=(anchor_pivot_x, anchor_pivot_y),
+        allow_translucent=allow_translucent,
+        strict_alignment=strict_alignment,
+    )
 
     if p.suffix.lower() in (".ase", ".aseprite"):
         project = AsepriteProject.load(p)
@@ -324,13 +379,12 @@ def export_asset_sprite_sheet(
     """
     Packs any .ase or .aseprite file into a texture atlas sheet and JSON metadata
     using LibreSprite's native batch engine (or python fallback).
+    Strictly verifies workspace boundaries for inputs and outputs.
     """
-    inp = Path(input_aseprite_file).resolve()
-    if not inp.exists():
-        raise FileNotFoundError(f"File not found: {inp}")
+    inp = workspace_policy.safe_resolve(input_aseprite_file, must_exist=True)
 
-    out_png = Path(output_png).resolve() if output_png else inp.with_name(f"{inp.stem}_sheet.png")
-    out_json = Path(output_json).resolve() if output_json else inp.with_name(f"{inp.stem}_sheet.json")
+    out_png = workspace_policy.safe_resolve(output_png) if output_png else inp.with_name(f"{inp.stem}_sheet.png")
+    out_json = workspace_policy.safe_resolve(output_json) if output_json else inp.with_name(f"{inp.stem}_sheet.json")
 
     cli = LibreSpriteCLI()
     if cli.is_available():

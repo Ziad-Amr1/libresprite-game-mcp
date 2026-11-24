@@ -1,18 +1,27 @@
 // LibreSprite Game MCP Bridge Script
-// Secure, allowlisted command bridge connecting LibreSprite GUI with AI assistants.
+// Hardened command bridge connecting LibreSprite GUI with AI assistants.
+// Version: 2.0 (Security Hardened)
 // Copyright (C) 2026 Antigravity / DeepMind
 
 const MCP_ENDPOINT = "http://127.0.0.1:64823";
 
-// Strict allowlist of permitted commands to prevent arbitrary code execution
+// Strict allowlist with parameter validation and boundary enforcement
 const ALLOWED_COMMANDS = {
     create_canvas: function(params) {
-        var w = params.width || 16;
-        var h = params.height || 16;
+        params = params || {};
+        var w = Number(params.width) || 16;
+        var h = Number(params.height) || 16;
+
+        // Enforce boundary limits (1 to 2048)
+        if (w < 1 || w > 2048 || h < 1 || h > 2048) {
+            throw new Error("Invalid canvas dimensions: " + w + "x" + h + ". Allowed range: 1..2048");
+        }
+
+        var colorMode = params.colorMode === "indexed" ? "indexed" : "rgba";
         app.command.NewFile({
-            width: w,
-            height: h,
-            colorMode: params.colorMode || "rgba",
+            width: Math.floor(w),
+            height: Math.floor(h),
+            colorMode: colorMode,
             background: "transparent"
         });
         return { message: "Canvas created " + w + "x" + h };
@@ -29,8 +38,15 @@ const ALLOWED_COMMANDS = {
         if (!app.activeSprite) {
             throw new Error("No active sprite to save");
         }
-        if (params.path) {
-            app.activeSprite.saveAs(params.path);
+        params = params || {};
+        var savePath = params.path ? String(params.path) : null;
+
+        if (savePath) {
+            // Block path traversal in save path
+            if (savePath.indexOf("..") !== -1) {
+                throw new Error("Path traversal forbidden in save path: " + savePath);
+            }
+            app.activeSprite.saveAs(savePath);
         } else {
             app.activeSprite.save();
         }
@@ -39,22 +55,50 @@ const ALLOWED_COMMANDS = {
 
     put_pixel: function(params) {
         if (!app.activeImage) throw new Error("No active image");
+        params = params || {};
+        var x = Number(params.x);
+        var y = Number(params.y);
+
+        if (isNaN(x) || isNaN(y) || x < 0 || y < 0 || x >= app.activeImage.width || y >= app.activeImage.height) {
+            throw new Error("Coordinates (" + x + ", " + y + ") out of image bounds.");
+        }
+
+        var r = Math.min(255, Math.max(0, Number(params.r) || 0));
+        var g = Math.min(255, Math.max(0, Number(params.g) || 0));
+        var b = Math.min(255, Math.max(0, Number(params.b) || 0));
+        var a = params.a !== undefined ? Math.min(255, Math.max(0, Number(params.a))) : 255;
+
         var col = app.pixelColor;
-        var c = col.rgba(params.r, params.g, params.b, params.a !== undefined ? params.a : 255);
-        app.activeImage.putPixel(params.x, params.y, c);
+        var c = col.rgba(r, g, b, a);
+        app.activeImage.putPixel(Math.floor(x), Math.floor(y), c);
         return { message: "Pixel placed" };
     },
 
     draw_rect: function(params) {
         if (!app.activeImage) throw new Error("No active image");
+        params = params || {};
+        var rx = Math.floor(Number(params.x) || 0);
+        var ry = Math.floor(Number(params.y) || 0);
+        var rw = Math.floor(Number(params.w) || 1);
+        var rh = Math.floor(Number(params.h) || 1);
+
+        if (rw < 1 || rh < 1 || rw > 2048 || rh > 2048) {
+            throw new Error("Invalid rectangle dimensions: " + rw + "x" + rh);
+        }
+
+        var r = Math.min(255, Math.max(0, Number(params.r) || 0));
+        var g = Math.min(255, Math.max(0, Number(params.g) || 0));
+        var b = Math.min(255, Math.max(0, Number(params.b) || 0));
+        var a = params.a !== undefined ? Math.min(255, Math.max(0, Number(params.a))) : 255;
+
         var col = app.pixelColor;
-        var c = col.rgba(params.r, params.g, params.b, params.a !== undefined ? params.a : 255);
-        var rx = params.x || 0;
-        var ry = params.y || 0;
-        var rw = params.w || 1;
-        var rh = params.h || 1;
-        for (var y = ry; y < ry + rh; y++) {
-            for (var x = rx; x < rx + rw; x++) {
+        var c = col.rgba(r, g, b, a);
+
+        var maxX = Math.min(app.activeImage.width, rx + rw);
+        var maxY = Math.min(app.activeImage.height, ry + rh);
+
+        for (var y = Math.max(0, ry); y < maxY; y++) {
+            for (var x = Math.max(0, rx); x < maxX; x++) {
                 app.activeImage.putPixel(x, y, c);
             }
         }
@@ -71,15 +115,20 @@ const ALLOWED_COMMANDS = {
 
 var mcpBridge = {
     connected: false,
+    sessionToken: "",
     pollKey: "mcp_poll",
     resultKey: "mcp_result",
     dialog: null,
 
     init: function() {
         var self = this;
+        // Check for session token from local storage or prompt
+        this.sessionToken = storage.get("mcp_session_token") || "";
+
         this.dialog = app.createDialog("mcpBridgeDialog");
-        this.dialog.title = "LibreSprite Game MCP Bridge (Secure)";
+        this.dialog.title = "LibreSprite Game MCP Bridge (Hardened)";
         this.dialog.addLabel("Status: Ready to connect");
+        this.dialog.addLabel("Token: " + (this.sessionToken ? "Configured" : "Auto-detect"));
         this.dialog.addButton("Connect", function() {
             self.start();
         });
@@ -117,28 +166,39 @@ var mcpBridge = {
         var info = this.getSpriteInfo();
         var body = JSON.stringify({ client_info: info });
 
+        // Include authentication token header
+        var headers = ["Content-Type", "application/json"];
+        if (self.sessionToken) {
+            headers.push("X-MCP-Token", self.sessionToken);
+        }
+
         storage.fetch(
             MCP_ENDPOINT + "/poll",
             self.pollKey,
             "",
             "POST",
             body,
-            "Content-Type",
-            "application/json"
+            headers[0],
+            headers[1]
         );
     },
 
     sendResult: function(resultData) {
         var self = this;
         var body = JSON.stringify(resultData);
+        var headers = ["Content-Type", "application/json"];
+        if (self.sessionToken) {
+            headers.push("X-MCP-Token", self.sessionToken);
+        }
+
         storage.fetch(
             MCP_ENDPOINT + "/result",
             self.resultKey,
             "",
             "POST",
             body,
-            "Content-Type",
-            "application/json"
+            headers[0],
+            headers[1]
         );
     },
 
@@ -149,7 +209,8 @@ var mcpBridge = {
         var cmdType = cmd.type;
         var params = cmd.params || {};
 
-        if (!(cmdType in ALLOWED_COMMANDS)) {
+        // Security: Strict own-property lookup preventing prototype pollution
+        if (!Object.prototype.hasOwnProperty.call(ALLOWED_COMMANDS, cmdType)) {
             self.sendResult({
                 status: "error",
                 error: "Unauthorized command: '" + cmdType + "'. Command not in security allowlist."

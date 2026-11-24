@@ -1,17 +1,23 @@
 """
-HTTP relay server bridging MCP tools with the live LibreSprite GUI application.
-Provides command queuing, execution timeouts, and live canvas preview retrieval.
+Hardened HTTP relay server bridging MCP tools with the live LibreSprite GUI application.
+Provides local session token authentication, payload bounds, and secure command dispatch.
 """
 
 from __future__ import annotations
 
 import json
+import secrets
 import threading
 import time
+from urllib.parse import urlparse, parse_qs
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
 from typing import Any, Dict, Optional
 
+from libresprite_game_mcp.config import get_libresprite_scripts_dir
+
 DEFAULT_PORT = 64823
+MAX_PAYLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
 class RelayState:
@@ -23,6 +29,19 @@ class RelayState:
         self.command_event = threading.Event()
         self.command_response: Optional[Dict[str, Any]] = None
         self.client_info: Dict[str, Any] = {}
+        # Generate cryptographically secure session token
+        self.session_token = secrets.token_hex(16)
+        self._write_session_token()
+
+    def _write_session_token(self) -> None:
+        """Writes session token to user's secure roaming directory for the bridge script."""
+        try:
+            token_file = get_libresprite_scripts_dir().parent / "mcp_session_token.json"
+            token_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(token_file, "w", encoding="utf-8") as f:
+                json.dump({"session_token": self.session_token, "port": DEFAULT_PORT}, f, indent=2)
+        except Exception:
+            pass
 
     def is_alive(self, timeout_sec: float = 4.0) -> bool:
         with self.lock:
@@ -40,7 +59,6 @@ class RelayState:
             self.command_event.clear()
             self.pending_command = cmd_data
 
-        # Wait for completion
         got_response = self.command_event.wait(timeout=timeout)
         with self.lock:
             self.pending_command = None
@@ -64,31 +82,39 @@ state = RelayState()
 
 
 class RelayRequestHandler(BaseHTTPRequestHandler):
-    """Handles HTTP requests between LibreSprite and MCP."""
+    """Hardened HTTP request handler with authentication and payload bounds."""
 
     def log_message(self, format: str, *args: Any) -> None:
         # Suppress routine polling logs
         pass
+
+    def _is_authenticated(self) -> bool:
+        """Verifies session token from X-MCP-Token header or query parameters."""
+        token = self.headers.get("X-MCP-Token")
+        if token and secrets.compare_digest(token, state.session_token):
+            return True
+
+        parsed = urlparse(self.path)
+        qs = parse_qs(parsed.query)
+        if "token" in qs and len(qs["token"]) > 0:
+            if secrets.compare_digest(qs["token"][0], state.session_token):
+                return True
+
+        return False
 
     def _send_json(self, data: Dict[str, Any], status: int = 200) -> None:
         body = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "*")
+        # Security: Do NOT emit wildcard CORS. Restrict to localhost.
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(body)
 
-    def do_OPTIONS(self) -> None:
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "*")
-        self.end_headers()
-
     def do_GET(self) -> None:
-        if self.path == "/status":
+        parsed = urlparse(self.path)
+        if parsed.path == "/status":
             alive = state.is_alive()
             self._send_json({
                 "connected": alive,
@@ -99,16 +125,32 @@ class RelayRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "Not found"}, 404)
 
     def do_POST(self) -> None:
-        content_len = int(self.headers.get("Content-Length", 0))
+        # 1. Enforce Authentication
+        if not self._is_authenticated():
+            self._send_json({"error": "Unauthorized. Missing or invalid X-MCP-Token."}, 401)
+            return
+
+        # 2. Enforce Payload Bounds
+        content_len_header = self.headers.get("Content-Length")
+        if not content_len_header or not content_len_header.isdigit():
+            self._send_json({"error": "Invalid Content-Length header"}, 400)
+            return
+
+        content_len = int(content_len_header)
+        if content_len > MAX_PAYLOAD_BYTES:
+            self._send_json({"error": f"Payload too large. Maximum size is {MAX_PAYLOAD_BYTES} bytes."}, 413)
+            return
+
         body_bytes = self.rfile.read(content_len) if content_len > 0 else b"{}"
 
         try:
             body = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
         except Exception:
-            body = {}
+            self._send_json({"error": "Malformed JSON payload"}, 400)
+            return
 
-        if self.path == "/poll":
-            # LibreSprite polling for next action
+        parsed = urlparse(self.path)
+        if parsed.path == "/poll":
             with state.lock:
                 state.connected = True
                 state.last_ping = time.time()
@@ -118,8 +160,7 @@ class RelayRequestHandler(BaseHTTPRequestHandler):
             cmd = state.pop_pending_command()
             self._send_json({"command": cmd})
 
-        elif self.path == "/result":
-            # LibreSprite returning execution response
+        elif parsed.path == "/result":
             with state.lock:
                 state.last_ping = time.time()
             state.set_command_response(body)
@@ -143,7 +184,7 @@ class RelayServer:
             try:
                 self.server = HTTPServer(("127.0.0.1", self.port), RelayRequestHandler)
                 self.server.serve_forever()
-            except Exception as e:
+            except Exception:
                 pass
 
         self.thread = threading.Thread(target=run, daemon=True)
@@ -155,7 +196,6 @@ class RelayServer:
             self.server = None
 
 
-# Global relay server instance
 global_relay = RelayServer()
 
 

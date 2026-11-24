@@ -122,19 +122,23 @@ def export_godot_spriteframes(
     frame_rects: Optional[List[Tuple[int, int, int, int]]] = None,
     fps: float = 10.0,
     padding: int = 1,
+    sheet_size: Optional[Tuple[int, int]] = None,
 ) -> Path:
     """
     Exports a 100% syntactically valid Godot 4.x SpriteFrames (.tres) resource.
-    Generates proper [sub_resource type="AtlasTexture"] declarations for every frame.
+    Preserves exact frame durations, verifies atlas regions, and handles tag ranges safely.
     """
     tres_path = Path(output_tres_path).resolve()
     tres_path.parent.mkdir(parents=True, exist_ok=True)
 
     frame_count = len(project.sprite.frames)
+    if frame_count == 0:
+        raise ValueError("Cannot export SpriteFrames: project has 0 frames.")
+
     frame_w = project.width
     frame_h = project.height
 
-    # If rects not passed, calculate default horizontal strip
+    # Calculate default horizontal strip if rects not passed
     if not frame_rects or len(frame_rects) != frame_count:
         frame_rects = []
         cell_w = frame_w + padding
@@ -143,9 +147,18 @@ def export_godot_spriteframes(
             ry = padding
             frame_rects.append((rx, ry, frame_w, frame_h))
 
-    load_steps = 2 + frame_count
+    # Verify atlas regions against sheet dimensions if provided
+    if sheet_size:
+        sheet_w, sheet_h = sheet_size
+        for i, (rx, ry, rw, rh) in enumerate(frame_rects):
+            if rx < 0 or ry < 0 or (rx + rw) > sheet_w or (ry + rh) > sheet_h:
+                raise ValueError(
+                    f"Frame {i} region ({rx}, {ry}, {rw}, {rh}) exceeds atlas sheet bounds {sheet_size}"
+                )
 
-    # Header and external texture resource
+    load_steps = 2 + frame_count
+    base_frame_ms = 1000.0 / max(0.1, fps)
+
     lines = [
         f'[gd_resource type="SpriteFrames" load_steps={load_steps} format=3]',
         "",
@@ -165,18 +178,29 @@ def export_godot_spriteframes(
 
     tags = list(project.sprite.tags)
     if not tags:
+        # Fallback to default animation covering all frames
         lines.append('  "frames": [')
         for i in range(frame_count):
-            lines.append(f'    {{ "duration": 1.0, "texture": SubResource("AtlasTexture_{i}") }},')
+            dur_ms = project.sprite.frames[i].duration_ms
+            dur_factor = max(0.01, round(dur_ms / base_frame_ms, 3))
+            lines.append(f'    {{ "duration": {dur_factor}, "texture": SubResource("AtlasTexture_{i}") }},')
         lines.append('  ],')
         lines.append('  "loop": true,')
         lines.append('  "name": &"default",')
         lines.append(f'  "speed": {fps}')
     else:
         for idx, tag in enumerate(tags):
+            # Clamp and sanitize tag frame ranges
+            from_f = max(0, min(tag.from_frame, frame_count - 1))
+            to_f = max(0, min(tag.to_frame, frame_count - 1))
+            if from_f > to_f:
+                from_f, to_f = to_f, from_f
+
             lines.append('  "frames": [')
-            for f_idx in range(tag.from_frame, tag.to_frame + 1):
-                lines.append(f'    {{ "duration": 1.0, "texture": SubResource("AtlasTexture_{f_idx}") }},')
+            for f_idx in range(from_f, to_f + 1):
+                dur_ms = project.sprite.frames[f_idx].duration_ms
+                dur_factor = max(0.01, round(dur_ms / base_frame_ms, 3))
+                lines.append(f'    {{ "duration": {dur_factor}, "texture": SubResource("AtlasTexture_{f_idx}") }},')
             lines.append('  ],')
             lines.append('  "loop": true,')
             lines.append(f'  "name": &"{tag.name}",')
